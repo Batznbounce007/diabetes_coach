@@ -138,6 +138,31 @@ async function clickAnyExportLikeControl(page: Page): Promise<boolean> {
   return false;
 }
 
+async function clickTextInPageOrFrames(page: Page, regex: RegExp): Promise<boolean> {
+  const targets = [page, ...page.frames()];
+  for (const target of targets) {
+    const byRoleButton = target.getByRole("button", { name: regex }).first();
+    if ((await byRoleButton.count()) > 0) {
+      await byRoleButton.click({ force: true }).catch(() => undefined);
+      return true;
+    }
+
+    const byRoleLink = target.getByRole("link", { name: regex }).first();
+    if ((await byRoleLink.count()) > 0) {
+      await byRoleLink.click({ force: true }).catch(() => undefined);
+      return true;
+    }
+
+    const textLocator = target.locator("a,button,[role='button']").filter({ hasText: regex }).first();
+    if ((await textLocator.count()) > 0) {
+      await textLocator.click({ force: true }).catch(() => undefined);
+      return true;
+    }
+  }
+
+  return false;
+}
+
 async function openCsvExportDialog(
   page: Page,
   day: string,
@@ -172,12 +197,25 @@ async function openCsvExportDialog(
     await dismissCookieOverlay(page);
     await page.waitForTimeout(500);
 
+    // Some Glooko layouts require opening the summary/reports area first.
+    await clickTextInPageOrFrames(page, /zusammenfassung|summary|reports?|diagramme|charts?/i).catch(
+      () => false
+    );
+    await page.waitForTimeout(250);
+    await dismissCookieOverlay(page);
+
     try {
       await clickFirstAvailable(page, exportSelectors, { force: true });
       return;
     } catch {
       // keep trying
     }
+
+    const clickedDeep = await clickTextInPageOrFrames(
+      page,
+      /als csv exportieren|export as csv|csv export|export csv|download csv|csv/i
+    );
+    if (clickedDeep) return;
 
     const clicked = await clickAnyExportLikeControl(page);
     if (clicked) return;
@@ -189,7 +227,7 @@ async function openCsvExportDialog(
     await fs.writeFile(`${debugPath}.html`, await page.content(), "utf8").catch(() => undefined);
   }
   throw new Error(
-    `Could not find CSV export trigger. Debug saved to ${debugPath}.png/.html (if available).`
+    `Could not find CSV export trigger at URL=${page.url()} title="${await page.title().catch(() => "")}". Debug saved to ${debugPath}.png/.html (if available).`
   );
 }
 
