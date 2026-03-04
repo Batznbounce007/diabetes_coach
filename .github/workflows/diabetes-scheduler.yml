@@ -62,3 +62,13 @@ jobs:
 
       - name: Run scheduled task selector
         run: node scripts/github-scheduled-runner.mjs
+
+      - name: Upload Glooko debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: glooko-debug-${{ github.run_id }}
+          path: |
+            exports/*-glooko-*.png
+            exports/*-glooko-*.html
+          if-no-files-found: ignore

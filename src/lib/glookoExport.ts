@@ -127,6 +127,72 @@ async function waitForLoginTransition(page: Page, timeoutMs = 45_000): Promise<v
     .catch(() => undefined);
 }
 
+async function clickAnyExportLikeControl(page: Page): Promise<boolean> {
+  const candidates = page
+    .locator("a,button,[role='button'],[data-testid],[aria-label]")
+    .filter({ hasText: /(csv|export|download|daten export|als csv exportieren)/i });
+  if ((await candidates.count()) > 0) {
+    await candidates.first().click({ force: true }).catch(() => undefined);
+    return true;
+  }
+  return false;
+}
+
+async function openCsvExportDialog(
+  page: Page,
+  day: string,
+  baseOrigin: string,
+  exportUrl?: string
+): Promise<void> {
+  const exportSelectors = [
+    "[data-testid*='export'][data-testid*='csv']",
+    "a:has-text('Als CSV exportieren')",
+    "button:has-text('Als CSV exportieren')",
+    "a:has-text('Export as CSV')",
+    "button:has-text('Export as CSV')",
+    "a:has-text('CSV export')",
+    "button:has-text('CSV export')",
+    "a:has-text('Export CSV')",
+    "button:has-text('Export CSV')",
+    "text=/CSV/i"
+  ];
+
+  const pagesToTry = [
+    exportUrl,
+    `${baseOrigin}/`,
+    `${baseOrigin}/reports`,
+    "https://de-fr.my.glooko.com/",
+    "https://de-fr.my.glooko.com/reports",
+    "https://my.glooko.com/",
+    "https://my.glooko.com/reports"
+  ].filter((value): value is string => Boolean(value));
+
+  for (const targetUrl of pagesToTry) {
+    await page.goto(targetUrl, { waitUntil: "domcontentloaded" }).catch(() => undefined);
+    await dismissCookieOverlay(page);
+    await page.waitForTimeout(500);
+
+    try {
+      await clickFirstAvailable(page, exportSelectors, { force: true });
+      return;
+    } catch {
+      // keep trying
+    }
+
+    const clicked = await clickAnyExportLikeControl(page);
+    if (clicked) return;
+  }
+
+  const debugPath = path.join(exportDir, `${day}-glooko-no-export-trigger`);
+  if (!page.isClosed()) {
+    await page.screenshot({ path: `${debugPath}.png`, fullPage: true }).catch(() => undefined);
+    await fs.writeFile(`${debugPath}.html`, await page.content(), "utf8").catch(() => undefined);
+  }
+  throw new Error(
+    `Could not find CSV export trigger. Debug saved to ${debugPath}.png/.html (if available).`
+  );
+}
+
 export async function exportGlookoCsvForDay(day: string): Promise<string> {
   const email = process.env.GLOOKO_EMAIL;
   const password = process.env.GLOOKO_PASSWORD;
@@ -139,6 +205,13 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
 
   await fs.mkdir(exportDir, { recursive: true });
   const csvPath = path.join(exportDir, `${day}.csv`);
+  const baseOrigin = (() => {
+    try {
+      return new URL(loginUrl).origin;
+    } catch {
+      return "https://de-fr.my.glooko.com";
+    }
+  })();
 
   const browser = await chromium.launch({
     headless: process.env.GLOOKO_HEADLESS !== "false"
@@ -194,24 +267,7 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
       throw new Error(`Glooko login appears to have failed. Current URL: ${page.url()}`);
     }
 
-    await page.goto("https://de-fr.my.glooko.com/", { waitUntil: "domcontentloaded" });
-    await dismissCookieOverlay(page);
-    await page.waitForTimeout(800);
-
-    if (exportUrl) {
-      await page.goto(exportUrl, { waitUntil: "domcontentloaded" });
-      await dismissCookieOverlay(page);
-    }
-
-    await clickFirstAvailable(page, [
-      "a:has-text('Als CSV exportieren')",
-      "button:has-text('Als CSV exportieren')",
-      "text=Als CSV exportieren",
-      "xpath=//*[contains(normalize-space(.), 'Als CSV exportieren')]",
-      "a:has-text('Export CSV')",
-      "button:has-text('Export CSV')",
-      "text=CSV"
-    ]);
+    await openCsvExportDialog(page, day, baseOrigin, exportUrl);
 
     await page.waitForTimeout(500);
     await selectFirstAvailable(
