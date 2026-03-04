@@ -114,6 +114,19 @@ async function setOneDayExportRange(page: Page): Promise<void> {
   }
 }
 
+async function waitForLoginTransition(page: Page, timeoutMs = 45_000): Promise<void> {
+  await page.waitForLoadState("domcontentloaded", { timeout: timeoutMs }).catch(() => undefined);
+
+  await page
+    .waitForFunction(() => {
+      const href = window.location.href;
+      const onSignIn = /sign[_-]?in/i.test(href);
+      const hasPasswordInput = Boolean(document.querySelector("input[type='password']"));
+      return !onSignIn && !hasPasswordInput;
+    }, { timeout: timeoutMs })
+    .catch(() => undefined);
+}
+
 export async function exportGlookoCsvForDay(day: string): Promise<string> {
   const email = process.env.GLOOKO_EMAIL;
   const password = process.env.GLOOKO_PASSWORD;
@@ -176,16 +189,18 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
       "input[value*='Anmelden']"
     ], { force: true });
 
-    await page.waitForLoadState("networkidle", { timeout: 30_000 });
+    await waitForLoginTransition(page, 45_000);
     if (page.url().includes("sign_in")) {
       throw new Error(`Glooko login appears to have failed. Current URL: ${page.url()}`);
     }
 
     await page.goto("https://de-fr.my.glooko.com/", { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => null);
+    await dismissCookieOverlay(page);
+    await page.waitForTimeout(800);
 
     if (exportUrl) {
       await page.goto(exportUrl, { waitUntil: "domcontentloaded" });
+      await dismissCookieOverlay(page);
     }
 
     await clickFirstAvailable(page, [
