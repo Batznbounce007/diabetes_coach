@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Mic, Square } from "lucide-react";
 import {
   coachProfileStorageKey as storageKey,
@@ -10,9 +10,9 @@ import {
 
 type CoachProfilePanelProps = {
   recommendation: string;
+  focusMessage: string;
+  goalGuidance: string;
   motivationalMessage: string;
-  lows: number;
-  highs: number;
   lang: "de" | "en";
 };
 
@@ -43,9 +43,9 @@ type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 
 export function CoachProfilePanel({
   recommendation,
+  focusMessage,
+  goalGuidance,
   motivationalMessage,
-  lows,
-  highs,
   lang
 }: CoachProfilePanelProps) {
   const [profile, setProfile] = useState<CoachProfile>(emptyProfile);
@@ -114,13 +114,9 @@ export function CoachProfilePanel({
           goalReduceHigh: "Hohe Werte reduzieren",
           goalReduceLow: "Hypoglykämien reduzieren",
           goalStability: "Werte stabilisieren",
-          goalPrioritized: (goal: string) => `Coach priorisiert dein Ziel: ${goal}.`,
-          focusHigh:
-            "Fokus auf hohe Werte: Mahlzeiten mit den stärksten Anstiegen zuerst optimieren.",
-          focusLow:
-            "Fokus auf Hypo-Prävention: Nacht- und Vormittagsfenster besonders beobachten.",
-          focusStable:
-            "Fokus auf Stabilität: das aktuelle Muster beibehalten und kleine Anpassungen testen."
+          goalPrefix: "Ziel:",
+          noGoalGuidance:
+            "Sobald du ein primäres Ziel speicherst, bekommst du hier einen gezielten Ziel-Impuls."
         }
       : {
           title: "Personalize your Diabetes Coach",
@@ -179,10 +175,9 @@ export function CoachProfilePanel({
           goalReduceHigh: "Reduce highs",
           goalReduceLow: "Reduce hypoglycemia",
           goalStability: "Improve stability",
-          goalPrioritized: (goal: string) => `Coach prioritizes your goal: ${goal}.`,
-          focusHigh: "Focus on highs: optimize meals with the strongest rises first.",
-          focusLow: "Focus on hypo prevention: monitor night and morning windows closely.",
-          focusStable: "Focus on stability: keep the current pattern and test small adjustments."
+          goalPrefix: "Goal:",
+          noGoalGuidance:
+            "As soon as you save a primary goal, you will see targeted goal coaching here."
         };
 
   useEffect(() => {
@@ -293,16 +288,6 @@ export function CoachProfilePanel({
     setSaved(true);
     setEditing(false);
   }
-
-  const personalizedFocus = useMemo(() => {
-    if (highs > lows) {
-      return t.focusHigh;
-    }
-    if (lows > 0) {
-      return t.focusLow;
-    }
-    return t.focusStable;
-  }, [highs, lows, t.focusHigh, t.focusLow, t.focusStable]);
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -497,14 +482,16 @@ export function CoachProfilePanel({
 
         <div className="mt-3 rounded-lg bg-secondary/60 p-3 text-sm">
           <p className="font-semibold">{t.focusFromData}</p>
-          <p className="mt-1 text-muted-foreground">{personalizedFocus}</p>
+          <p className="mt-1 text-muted-foreground">{focusMessage}</p>
         </div>
 
         {saved ? (
           <div className="mt-3 rounded-lg border border-border p-3 text-sm">
             <p className="font-semibold">{t.linkedGoal}</p>
               <p className="mt-1 text-muted-foreground">
-              {profile.primaryGoal ? t.goalPrioritized(goalLabel) : t.noPrimaryGoal}
+              {profile.primaryGoal
+                ? `${t.goalPrefix} ${goalLabel}. ${goalGuidance}`
+                : t.noGoalGuidance}
               </p>
           </div>
         ) : null}

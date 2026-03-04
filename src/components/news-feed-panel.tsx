@@ -53,24 +53,14 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
                   <span>{item.source}</span>
                   <span>{formatDate(item.publishedAt, lang)}</span>
                 </div>
-                <div className="flex items-start gap-3">
-                  {item.imageUrl ? (
-                    <img
-                      src={item.imageUrl}
-                      alt={item.title}
-                      loading="lazy"
-                      className="h-14 w-14 shrink-0 rounded-md border border-border object-cover"
-                    />
-                  ) : null}
-                  <a
-                    href={item.link}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm font-semibold leading-6 text-foreground underline"
-                  >
-                    {item.title}
-                  </a>
-                </div>
+                <a
+                  href={item.link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm font-semibold leading-6 text-foreground underline"
+                >
+                  {item.title}
+                </a>
               </article>
             ))}
           </div>

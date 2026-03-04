@@ -8,6 +8,7 @@ import { DailyTirChart } from "@/components/daily-tir-chart";
 import { NewsFeedPanel } from "@/components/news-feed-panel";
 import { TirDistribution } from "@/components/tir-distribution";
 import { ShareEmailPanel } from "@/components/share-email-panel";
+import { ShareRangeFilter } from "@/components/share-range-filter";
 import { SystemQaPanel } from "@/components/system-qa-panel";
 import { SummaryKpi } from "@/components/summary-kpi";
 import { Card } from "@/components/ui/card";
@@ -181,8 +182,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     const to = endOfDay(now);
     filteredReadings = await loadReadings(from, to);
   } else if (tab === "share") {
-    // Share tab stays compact with last 24h.
-    const from = startOfDay(subDays(now, 1));
+    // Share tab supports selectable range (1/7/14/30 days).
+    const from = startOfDay(subDays(now, getRangeDays(filters.range) - 1));
     const to = endOfDay(now);
     filteredReadings = await loadReadings(from, to);
   } else if (tab === "news") {
@@ -218,6 +219,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const coachingAssessment = aiCoachingCopy?.assessment ?? recommendationText;
   const therapyActions = aiCoachingCopy?.actions ?? [];
   const motivationBoost = aiCoachingCopy?.motivation ?? motivationalText;
+  const coachFocusMessage = therapyActions[0] ?? coachingAssessment;
+  const coachGoalGuidance = therapyActions[1] ?? therapyActions[0] ?? coachingAssessment;
 
   const emailSubject = `CGM Tagesbericht ${format(new Date(), "dd.MM.yyyy")}`;
   const emailBody = [
@@ -280,7 +283,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   return (
     <main className="mx-auto min-h-screen max-w-7xl px-6 py-10">
-      <section className="mb-6 flex flex-col gap-3">
+      <section className="mb-4 flex flex-col gap-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight">{title}</h1>
@@ -311,7 +314,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             </Link>
           </div>
         </div>
+      </section>
 
+      <section className="sticky top-3 z-40 mb-6 rounded-2xl border border-border/70 bg-background/80 p-1 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <DashboardTabs
           currentTab={tab}
           range={filters.range}
@@ -451,7 +456,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
             <Card className="space-y-4">
               <h2 className="text-lg font-semibold">{coachingTitle}</h2>
-              <p className="text-sm text-muted-foreground">{recommendationText}</p>
+              <p className="text-sm text-muted-foreground">{coachingAssessment}</p>
               <div className="rounded-xl border border-border bg-secondary/30 p-4">
                 <p className="text-sm font-semibold">{coachingSummaryLabel}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{coachingAssessment}</p>
@@ -518,10 +523,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
       {tab === "coach" ? (
         <CoachProfilePanel
-          recommendation={recommendationText}
-          motivationalMessage={motivationalText}
-          lows={lows}
-          highs={highs}
+          recommendation={coachingAssessment}
+          focusMessage={coachFocusMessage}
+          goalGuidance={coachGoalGuidance}
+          motivationalMessage={motivationBoost}
           lang={lang}
         />
       ) : null}
@@ -531,6 +536,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           <Card className="space-y-3">
             <h2 className="text-xl font-semibold">{shareTitle}</h2>
             <p className="text-sm text-muted-foreground">{shareText}</p>
+            <ShareRangeFilter
+              lang={lang}
+              currentRange={filters.range}
+              chartMode={chartMode}
+              timeBucket={filters.timeBucket}
+            />
             <ShareEmailPanel subject={emailSubject} body={emailBody} lang={lang} />
           </Card>
 

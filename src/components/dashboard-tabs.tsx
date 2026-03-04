@@ -38,7 +38,7 @@ export function DashboardTabs({
   chartMode
 }: DashboardTabsProps) {
   return (
-    <div className="sticky top-2 z-30 -mx-1 mt-1 rounded-2xl border border-border/70 bg-card/90 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/75">
+    <div className="rounded-2xl border border-border/70 bg-card/90 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/75">
       <div className="no-scrollbar flex snap-x gap-2 overflow-x-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon;

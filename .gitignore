@@ -6,3 +6,4 @@ node_modules
 exports/*.csv
 coverage
 prisma/dev.db*
+data/news-cache.json

@@ -169,6 +169,101 @@ function parseImageUrl(itemXml: string): string {
   return parseImageFromDescription(itemXml);
 }
 
+function pickTopicAccent(topic: string): { bg: string; fg: string; icon: string } {
+  const key = topic.toLowerCase();
+  if (key.includes("forschung") || key.includes("research")) {
+    return { bg: "#E8F6EE", fg: "#0F5132", icon: "🧪" };
+  }
+  if (key.includes("cgm") || key.includes("sensor")) {
+    return { bg: "#E8F1FF", fg: "#1E3A8A", icon: "📈" };
+  }
+  if (key.includes("pumpe") || key.includes("pump")) {
+    return { bg: "#FFF3E8", fg: "#9A3412", icon: "💉" };
+  }
+  if (key.includes("loop") || key.includes("aid") || key.includes("aps")) {
+    return { bg: "#F3E8FF", fg: "#6B21A8", icon: "🔁" };
+  }
+  return { bg: "#ECFDF5", fg: "#065F46", icon: "🩺" };
+}
+
+function buildFallbackThumbnail(topic: string): string {
+  const accent = pickTopicAccent(topic);
+  const label = topic.slice(0, 18);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="112" height="112" viewBox="0 0 112 112">
+  <rect width="112" height="112" rx="14" fill="${accent.bg}" />
+  <text x="56" y="44" text-anchor="middle" font-size="22">${accent.icon}</text>
+  <text x="56" y="76" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="${accent.fg}">${label}</text>
+</svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function parseMetaImage(html: string): string {
+  const patterns = [
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>/i,
+    /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["'][^>]*>/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match?.[1]) return match[1].trim();
+  }
+
+  return "";
+}
+
+async function withTimeout<T>(
+  task: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await task(controller.signal);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function enrichItem(item: NewsItem): Promise<NewsItem> {
+  const fallbackThumbnail = buildFallbackThumbnail(item.topic);
+  if (item.imageUrl) {
+    return { ...item, imageUrl: item.imageUrl || fallbackThumbnail };
+  }
+
+  try {
+    const resolved = await withTimeout(
+      (signal: AbortSignal) =>
+        fetch(item.link, {
+          redirect: "follow",
+          signal,
+          headers: {
+            "user-agent":
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36"
+          }
+        }),
+      7000
+    );
+
+    if (!resolved.ok) {
+      return { ...item, imageUrl: fallbackThumbnail };
+    }
+
+    const finalUrl = resolved.url || item.link;
+    const html = await resolved.text();
+    const metaImage = parseMetaImage(html);
+
+    return {
+      ...item,
+      link: finalUrl,
+      imageUrl: metaImage || fallbackThumbnail
+    };
+  } catch {
+    return { ...item, imageUrl: fallbackThumbnail };
+  }
+}
+
 function parseSourceLabel(itemXml: string, fallback: string): string {
   const sourceBlock = textBetween(itemXml, "<source", "</source>");
   if (!sourceBlock) return fallback;
@@ -233,9 +328,12 @@ export async function getNewsDigest(limit = 30): Promise<NewsItem[]> {
     })
   );
 
-  return uniqueByLink(results.flat())
+  const baseItems = uniqueByLink(results.flat())
     .sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1))
     .slice(0, limit);
+
+  const enriched = await Promise.all(baseItems.map((item) => enrichItem(item)));
+  return enriched;
 }
 
 type NewsCachePayload = {
