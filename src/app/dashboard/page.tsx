@@ -24,6 +24,7 @@ import { getCachedNewsDigest } from "@/lib/news";
 import { prisma } from "@/lib/prisma";
 import type { CgmSample } from "@/lib/types";
 import { buildAgpSeries, type AgpPoint } from "@/lib/agp";
+import { generateCoachingCopy } from "@/lib/coachingAi";
 
 type DashboardPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -121,6 +122,21 @@ function calculateMedian(readings: CgmSample[]): number {
   return Number(sorted[mid].toFixed(1));
 }
 
+function buildRangeLabel(range: string, lang: Lang): string {
+  if (lang === "de") {
+    if (range === "1d") return "letzten 24 Stunden";
+    if (range === "7d") return "letzten 7 Tage";
+    if (range === "14d") return "letzten 14 Tage";
+    if (range === "30d") return "letzten 30 Tage";
+    return "gewählten Zeitraum";
+  }
+  if (range === "1d") return "last 24 hours";
+  if (range === "7d") return "last 7 days";
+  if (range === "14d") return "last 14 days";
+  if (range === "30d") return "last 30 days";
+  return "selected period";
+}
+
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const resolvedSearchParams = (await searchParams) ?? {};
   const tab = parseTab(getParam(resolvedSearchParams.tab));
@@ -185,6 +201,23 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const lowPercent = (lows / totalCount) * 100;
   const inRangePercent = (inRangeCount / totalCount) * 100;
   const highPercent = (highs / totalCount) * 100;
+  const rangeLabel = buildRangeLabel(filters.range, lang);
+  const aiCoachingCopy = await generateCoachingCopy({
+    lang,
+    rangeLabel,
+    tirPercent: insight.tirPercent,
+    avgGlucose,
+    medianGlucose,
+    stdDev: insight.stdDev,
+    cv: insight.coefficientVariance,
+    lowPercent,
+    inRangePercent,
+    highPercent,
+    streakDays: latestSummary?.streakDays ?? 0
+  });
+  const coachingAssessment = aiCoachingCopy?.assessment ?? recommendationText;
+  const therapyActions = aiCoachingCopy?.actions ?? [];
+  const motivationBoost = aiCoachingCopy?.motivation ?? motivationalText;
 
   const emailSubject = `CGM Tagesbericht ${format(new Date(), "dd.MM.yyyy")}`;
   const emailBody = [
@@ -222,6 +255,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const lowLabel = lang === "de" ? "Niedrig" : "Low";
   const inRangeLabel = lang === "de" ? "Zielbereich" : "In range";
   const highLabel = lang === "de" ? "Hoch" : "High";
+  const coachingSummaryLabel = lang === "de" ? "Coaching-Einschätzung" : "Coaching assessment";
+  const coachingActionsLabel = lang === "de" ? "Therapie-Fokus (wichtigste Hebel)" : "Therapy focus (key levers)";
   const shareTitle = lang === "de" ? "Teilen" : "Share";
   const shareText =
     lang === "de"
@@ -417,6 +452,20 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             <Card className="space-y-4">
               <h2 className="text-lg font-semibold">{coachingTitle}</h2>
               <p className="text-sm text-muted-foreground">{recommendationText}</p>
+              <div className="rounded-xl border border-border bg-secondary/30 p-4">
+                <p className="text-sm font-semibold">{coachingSummaryLabel}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{coachingAssessment}</p>
+                {therapyActions.length > 0 ? (
+                  <>
+                    <p className="mt-3 text-sm font-semibold">{coachingActionsLabel}</p>
+                    <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                      {therapyActions.map((action) => (
+                        <li key={action}>{action}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
+              </div>
               <TirDistribution
                 lowPercent={lowPercent}
                 inRangePercent={inRangePercent}
@@ -427,7 +476,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               />
               <div className="rounded-xl bg-secondary/70 p-4">
                 <p className="text-sm font-semibold">{motivationTitle}</p>
-                <p className="mt-1 text-sm text-secondary-foreground">{motivationalText}</p>
+                <p className="mt-1 text-sm text-secondary-foreground">{motivationBoost}</p>
               </div>
             </Card>
           </section>
