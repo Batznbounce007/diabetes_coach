@@ -39,6 +39,41 @@ async function clickFirstAvailable(
   throw new Error("Could not find any matching element to click.");
 }
 
+async function dismissCookieOverlay(page: Page): Promise<void> {
+  const acceptSelectors = [
+    "#onetrust-accept-btn-handler",
+    "button:has-text('Accept All')",
+    "button:has-text('Alle akzeptieren')",
+    "button:has-text('Accept')"
+  ];
+
+  for (const selector of acceptSelectors) {
+    const button = page.locator(selector).first();
+    if ((await button.count()) > 0) {
+      await button.click({ force: true }).catch(() => undefined);
+      await page.waitForTimeout(150);
+      break;
+    }
+  }
+
+  // Fallback: remove known OneTrust blockers if still present.
+  await page
+    .evaluate(() => {
+      const ids = [
+        "onetrust-consent-sdk",
+        "onetrust-banner-sdk",
+        "onetrust-pc-sdk",
+        "ot-sdk-cookie-policy"
+      ];
+      for (const id of ids) {
+        const element = document.getElementById(id);
+        if (element) element.remove();
+      }
+      document.body.style.overflow = "auto";
+    })
+    .catch(() => undefined);
+}
+
 async function selectFirstAvailable(
   page: Page,
   selectors: string[],
@@ -102,6 +137,7 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
     page = await context.newPage();
 
     await page.goto(loginUrl, { waitUntil: "domcontentloaded" });
+    await dismissCookieOverlay(page);
 
     const emailFilled = await fillFirstAvailable(
       page,
@@ -138,7 +174,7 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
       "button:has-text('Log in')",
       "button:has-text('Anmelden')",
       "input[value*='Anmelden']"
-    ]);
+    ], { force: true });
 
     await page.waitForLoadState("networkidle", { timeout: 30_000 });
     if (page.url().includes("sign_in")) {
