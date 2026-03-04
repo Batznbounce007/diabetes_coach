@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model CgmReading {
+  id        String   @id @default(cuid())
+  source    String   @default("glooko")
+  timestamp DateTime
+  glucose   Int
+  createdAt DateTime @default(now())
+
+  @@unique([source, timestamp])
+  @@index([timestamp])
+}
+
+model DailySummary {
+  id                  String   @id @default(cuid())
+  day                 DateTime @unique
+  tirPercent          Float
+  stdDev              Float
+  coefficientVariance Float
+  streakDays          Int
+  recommendation      String
+  motivationalMessage String
+  createdAt           DateTime @default(now())
+}

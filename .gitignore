@@ -1,0 +1,8 @@
+node_modules
+.next
+.next_broken_*
+.env
+.env.local
+exports/*.csv
+coverage
+prisma/dev.db*
