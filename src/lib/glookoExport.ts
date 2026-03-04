@@ -138,6 +138,24 @@ async function clickAnyExportLikeControl(page: Page): Promise<boolean> {
   return false;
 }
 
+async function openExportFromProfileCard(page: Page): Promise<boolean> {
+  const candidates = [
+    page.getByRole("link", { name: /als csv exportieren/i }).first(),
+    page.getByRole("button", { name: /als csv exportieren/i }).first(),
+    page.getByRole("link", { name: /export as csv|csv export|export csv/i }).first(),
+    page.getByRole("button", { name: /export as csv|csv export|export csv/i }).first(),
+    page.locator("a,button").filter({ hasText: /als csv exportieren/i }).first()
+  ];
+
+  for (const candidate of candidates) {
+    if ((await candidate.count()) > 0) {
+      await candidate.click({ force: true }).catch(() => undefined);
+      return true;
+    }
+  }
+  return false;
+}
+
 async function clickTextInPageOrFrames(page: Page, regex: RegExp): Promise<boolean> {
   const targets = [page, ...page.frames()];
   for (const target of targets) {
@@ -182,15 +200,17 @@ async function openCsvExportDialog(
     "text=/CSV/i"
   ];
 
-  const pagesToTry = [
-    exportUrl,
-    `${baseOrigin}/`,
-    `${baseOrigin}/reports`,
-    "https://de-fr.my.glooko.com/",
-    "https://de-fr.my.glooko.com/reports",
-    "https://my.glooko.com/",
-    "https://my.glooko.com/reports"
-  ].filter((value): value is string => Boolean(value));
+  const pagesToTry = Array.from(
+    new Set(
+      [
+        exportUrl,
+        page.url(),
+        `${baseOrigin}/`,
+        baseOrigin.includes("de-fr.my.glooko.com") ? "https://de-fr.my.glooko.com/" : "",
+        baseOrigin.includes("my.glooko.com") ? "https://my.glooko.com/" : ""
+      ].filter((value): value is string => Boolean(value))
+    )
+  );
 
   for (const targetUrl of pagesToTry) {
     await page.goto(targetUrl, { waitUntil: "domcontentloaded" }).catch(() => undefined);
@@ -203,6 +223,9 @@ async function openCsvExportDialog(
     );
     await page.waitForTimeout(250);
     await dismissCookieOverlay(page);
+
+    const profileFlowClicked = await openExportFromProfileCard(page);
+    if (profileFlowClicked) return;
 
     try {
       await clickFirstAvailable(page, exportSelectors, { force: true });
