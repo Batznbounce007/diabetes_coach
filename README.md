@@ -72,6 +72,37 @@ npm run db:seed
 - Trigger full pipeline now (analysis + immediate message): `npm run job:run-now`
 - Trigger nightly analysis only: `npm run job:analysis-now`
 - Trigger morning Telegram only (sends previous day): `npm run job:morning-now`
+- Run GitHub scheduler selector locally: `npm run job:github-scheduler`
+
+## GitHub Actions (recommended automation)
+
+Workflow file: `.github/workflows/diabetes-scheduler.yml`
+
+What it does automatically (Europe/Berlin):
+- `08:00`: refresh News cache
+- `09:00`: send morning Telegram message
+- `23:59`: export Glooko CSV, ingest into PostgreSQL/Supabase, compute daily summary
+
+The workflow includes CET/CEST-safe UTC triggers and validates the Berlin time window before running a task.
+
+Required repository secrets:
+- `DATABASE_URL`
+- `GLOOKO_EMAIL`
+- `GLOOKO_PASSWORD`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+
+Optional repository secrets:
+- `GROQ_API_KEY`
+- `GROQ_MODEL`
+- `GROQ_BASE_URL`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `OPENAI_BASE_URL`
+
+Manual trigger:
+- Open GitHub -> `Actions` -> `Diabetes Scheduler` -> `Run workflow`
+- Choose `job`: `auto`, `news`, `morning`, `analysis`, or `all`
 
 ## TDD Coverage (current)
 

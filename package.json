@@ -18,7 +18,8 @@
     "job:run-now": "tsx src/jobs/dailyDigestJob.ts --run-now",
     "job:analysis-now": "tsx src/jobs/dailyDigestJob.ts --run-analysis-now",
     "job:morning-now": "tsx src/jobs/dailyDigestJob.ts --run-morning-now",
-    "job:scheduler:node": "node --import tsx src/jobs/dailyDigestJob.ts"
+    "job:scheduler:node": "node --import tsx src/jobs/dailyDigestJob.ts",
+    "job:github-scheduler": "node scripts/github-scheduled-runner.mjs"
   },
   "keywords": [],
   "author": "",
