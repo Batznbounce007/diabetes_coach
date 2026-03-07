@@ -7,6 +7,10 @@ const exportDir = path.resolve(process.cwd(), "exports");
 
 const defaultLoginUrl = "https://de-fr.my.glooko.com/users/sign_in";
 
+function isSignInUrl(url: string): boolean {
+  return /\/users\/sign[_-]?in/i.test(url);
+}
+
 async function fillFirstAvailable(
   page: Page,
   selectors: string[],
@@ -208,7 +212,7 @@ async function openCsvExportDialog(
         `${baseOrigin}/`,
         baseOrigin.includes("de-fr.my.glooko.com") ? "https://de-fr.my.glooko.com/" : "",
         baseOrigin.includes("my.glooko.com") ? "https://my.glooko.com/" : ""
-      ].filter((value): value is string => Boolean(value))
+      ].filter((value): value is string => Boolean(value) && !isSignInUrl(value))
     )
   );
 
@@ -216,6 +220,10 @@ async function openCsvExportDialog(
     await page.goto(targetUrl, { waitUntil: "domcontentloaded" }).catch(() => undefined);
     await dismissCookieOverlay(page);
     await page.waitForTimeout(500);
+
+    if (isSignInUrl(page.url())) {
+      continue;
+    }
 
     // Some Glooko layouts require opening the summary/reports area first.
     await clickTextInPageOrFrames(page, /zusammenfassung|summary|reports?|diagramme|charts?/i).catch(
@@ -248,6 +256,11 @@ async function openCsvExportDialog(
   if (!page.isClosed()) {
     await page.screenshot({ path: `${debugPath}.png`, fullPage: true }).catch(() => undefined);
     await fs.writeFile(`${debugPath}.html`, await page.content(), "utf8").catch(() => undefined);
+  }
+  if (isSignInUrl(page.url())) {
+    throw new Error(
+      `Glooko session is not authenticated (redirected to sign-in at ${page.url()}). Check GLOOKO_EMAIL/GLOOKO_PASSWORD and whether Glooko prompts for additional verification. Debug saved to ${debugPath}.png/.html (if available).`
+    );
   }
   throw new Error(
     `Could not find CSV export trigger at URL=${page.url()} title="${await page.title().catch(() => "")}". Debug saved to ${debugPath}.png/.html (if available).`
@@ -324,7 +337,7 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
     ], { force: true });
 
     await waitForLoginTransition(page, 45_000);
-    if (page.url().includes("sign_in")) {
+    if (isSignInUrl(page.url())) {
       throw new Error(`Glooko login appears to have failed. Current URL: ${page.url()}`);
     }
 
