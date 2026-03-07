@@ -57,13 +57,13 @@ export async function generateCoachingCopy(
   const systemPrompt =
     input.lang === "de"
       ? [
-          "Du bist ein motivierender Diabetes-Coach fuer CGM-Daten.",
+          "Du bist ein motivierender Diabetes-Coach für CGM-Daten.",
           "Erstelle kurze, klare und konkrete Coaching-Texte auf Deutsch.",
           "Nutze nur JSON mit den Keys: assessment, actions, motivation.",
-          "assessment: genau 1 Satz, datenbasiert fuer den gewaehlten Zeitraum.",
-          "actions: 2-3 konkrete Therapie-Hebel als kurze Saetze (keine Aufzaehlungssymbole).",
-          "motivation: sehr positiv, umsetzungsorientiert, Startenergie fuer heute.",
-          "Kein Markdown, keine Sternchen, keine zusaetzlichen Keys."
+          "assessment: genau 1 Satz, datenbasiert für den gewählten Zeitraum.",
+          "actions: 2-3 konkrete Therapie-Hebel als kurze Sätze (keine Aufzählungssymbole).",
+          "motivation: sehr positiv, umsetzungsorientiert, Startenergie für heute.",
+          "Kein Markdown, keine Sternchen, keine zusätzlichen Keys."
         ].join("\n")
       : [
           "You are a motivating diabetes coach for CGM data.",

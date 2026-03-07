@@ -12,6 +12,7 @@ import { ShareRangeFilter } from "@/components/share-range-filter";
 import { SystemQaPanel } from "@/components/system-qa-panel";
 import { SummaryKpi } from "@/components/summary-kpi";
 import { Card } from "@/components/ui/card";
+import { CarbPhotoPanel } from "@/components/carb-photo-panel";
 import {
   averageGlucose,
   buildDailyTirSeries,
@@ -31,7 +32,7 @@ type DashboardPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-type DashboardTab = "dashboard" | "coach" | "share" | "systems" | "news";
+type DashboardTab = "dashboard" | "coach" | "share" | "systems" | "news" | "carbs";
 type Lang = "de" | "en";
 type ChartMode = "line" | "agp";
 
@@ -79,7 +80,8 @@ function parseTab(value: string | undefined): DashboardTab {
     value === "coach" ||
     value === "share" ||
     value === "systems" ||
-    value === "news"
+    value === "news" ||
+    value === "carbs"
   ) {
     return value;
   }
@@ -247,7 +249,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const filterTimeLabel = lang === "de" ? "Tageszeit" : "Time of day";
   const applyFilterLabel = lang === "de" ? "Filter anwenden" : "Apply filters";
   const curveTitle = lang === "de" ? "Glukosekurve (filtered)" : "Glucose curve (filtered)";
-  const curveModeLineLabel = lang === "de" ? "Verlauf" : "Trend";
+  const curveModeLineLabel = lang === "de" ? "Verlauf (1 Tag)" : "Trend (1 day)";
   const curveModeAgpLabel = lang === "de" ? "AGP (14 Tage)" : "AGP (14 days)";
   const dailyOverviewTitle = lang === "de" ? "Tagesübersicht" : "Daily overview";
   const dailyTirTitle = lang === "de" ? "TIR je Tag" : "TIR by day";
@@ -316,7 +318,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </div>
       </section>
 
-      <section className="sticky top-3 z-40 mb-6 rounded-2xl border border-border/70 bg-background/80 p-1 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <section className="sticky top-3 z-40 mb-6">
         <DashboardTabs
           currentTab={tab}
           range={filters.range}
@@ -526,7 +528,20 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           recommendation={coachingAssessment}
           focusMessage={coachFocusMessage}
           goalGuidance={coachGoalGuidance}
+          therapyActions={therapyActions}
           motivationalMessage={motivationBoost}
+          podcastMetrics={{
+            rangeLabel,
+            tirPercent: insight.tirPercent,
+            avgGlucose,
+            medianGlucose,
+            stdDev: insight.stdDev,
+            cv: insight.coefficientVariance,
+            lowPercent,
+            inRangePercent,
+            highPercent,
+            streakDays: latestSummary?.streakDays ?? 0
+          }}
           lang={lang}
         />
       ) : null}
@@ -571,6 +586,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
       {tab === "systems" ? <SystemQaPanel lang={lang} /> : null}
       {tab === "news" ? <NewsFeedPanel news={news} lang={lang} /> : null}
+      {tab === "carbs" ? <CarbPhotoPanel lang={lang} /> : null}
     </main>
   );
 }

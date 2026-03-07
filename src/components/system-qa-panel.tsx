@@ -52,17 +52,17 @@ type SystemQaPanelProps = {
 
 const starterQuestionsDe = [
   "Hohe Werte nach Abendessen im Closed Loop senken",
-  "Was tun bei CGM-Signalabbruechen?",
+  "Was tun bei CGM-Signalabbrüchen?",
   "Warum nachts wiederholt niedrige Werte?",
-  "Erster Schritt bei unerklaerlich hohen Werten trotz Bolus",
+  "Erster Schritt bei unerklärlich hohen Werten trotz Bolus",
   "Ist Katheter/Infusionsset die Ursache?",
-  "TIR erhoehen ohne mehr Hypoglykaemien",
-  "Welche Closed-Loop-Einstellungen vor Sport pruefen?",
+  "TIR erhöhen ohne mehr Hypoglykämien",
+  "Welche Closed-Loop-Einstellungen vor Sport prüfen?",
   "Starke Schwankungen an stressigen Arbeitstagen: was tun?",
-  "CGM-Werte verspaetet oder sprunghaft: was tun?",
-  "Fruehstueck besser abdecken bei Anstiegen danach",
-  "Welche 3 Kennzahlen taeglich tracken?",
-  "Wann Alarme fuer hohe/niedrige Werte anpassen?"
+  "CGM-Werte verspätet oder sprunghaft: was tun?",
+  "Frühstück besser abdecken bei Anstiegen danach",
+  "Welche 3 Kennzahlen täglich tracken?",
+  "Wann Alarme für hohe/niedrige Werte anpassen?"
 ];
 
 const starterQuestionsEn = [
@@ -136,27 +136,31 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
   const [speechSupported, setSpeechSupported] = useState(false);
   const [speechStatus, setSpeechStatus] = useState<string>("");
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const qaHistoryRef = useRef<HTMLDivElement | null>(null);
+  const latestEntryRef = useRef<HTMLDivElement | null>(null);
 
   const t =
     lang === "de"
       ? {
           title: "Ask anything!",
           subtitle:
-            "Stelle gezielte Fragen zu Pumpe, CGM und Closed Loop. Antworten basieren auf Handbuechern, Dokumentationen und Praxisquellen.",
+            "Stelle gezielte Fragen zu Pumpe, CGM und Closed Loop. Antworten basieren auf Handbüchern, Dokumentationen und Praxisquellen.",
           placeholder:
-            "z. B. Was ist der beste erste Schritt bei haeufigen hohen Werten nach dem Essen?",
+            "z. B. Was ist der beste erste Schritt bei häufigen hohen Werten nach dem Essen?",
           stopRecording: "Aufnahme stoppen",
           startRecording: "Frage einsprechen",
           loading: "Lade fachgerechte Antworten...",
           submit: "Erhalte fachgerechte Antworten",
           micHint: 'Mikrofon aktivierbar: Klick auf das Mikrofon-Symbol.',
-          micUnsupported: "Spracherkennung wird in diesem Browser nicht unterstuetzt.",
+          micUnsupported: "Spracherkennung wird in diesem Browser nicht unterstützt.",
           speechRecognized: "Sprache erkannt...",
           speechError: "Spracherkennung fehlgeschlagen. Bitte erneut versuchen.",
           speechStopped: "Aufnahme beendet.",
-          speechActive: "Ich hoere zu... sprich jetzt deine Frage.",
+          speechActive: "Ich höre zu... sprich jetzt deine Frage.",
           speechStartError: "Mikrofon konnte nicht gestartet werden.",
-          qaHistory: "Antworten & Rueckfragen",
+          qaHistory: "Antworten & Rückfragen",
+          latestAnswerReady: "Deine Antwort ist da",
+          answerIncoming: "Antwort wird erstellt…",
           you: "Du",
           coach: "Diabetes Coach",
           sources: "Quellen",
@@ -167,9 +171,9 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
             "Aktuell kann ich keine Antwort laden. Bitte versuche es erneut oder stelle die Frage genauer mit System, Zeitpunkt und Situation.",
           sourceCatalog: "Quellenkatalog",
           sourceCatalogSubtitle:
-            "Grundlage fuer fachgerechte Antworten mit Handbuechern, Dokumentationen und Praxisquellen.",
+            "Grundlage für fachgerechte Antworten mit Handbüchern, Dokumentationen und Praxisquellen.",
           medicalNote:
-            "Medizinischer Hinweis: Antworten dienen als Orientierung und ersetzen keine aerztliche Beratung."
+            "Medizinischer Hinweis: Antworten dienen als Orientierung und ersetzen keine ärztliche Beratung."
         }
       : {
           title: "Ask anything!",
@@ -188,6 +192,8 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
           speechActive: "Listening... ask your question now.",
           speechStartError: "Could not start microphone.",
           qaHistory: "Answers & follow-ups",
+          latestAnswerReady: "Your answer is ready",
+          answerIncoming: "Generating answer…",
           you: "You",
           coach: "Diabetes Coach",
           sources: "Sources",
@@ -207,6 +213,13 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
     () => (lang === "de" ? starterQuestionsDe : starterQuestionsEn),
     [lang]
   );
+  const qaPairs = useMemo(() => buildQaPairs(chat).reverse(), [chat]);
+
+  useEffect(() => {
+    if (chat.length === 0 && !isLoading) return;
+    qaHistoryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    latestEntryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [chat, isLoading]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -345,6 +358,12 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
             <textarea
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                  event.preventDefault();
+                  void submitQuery(question);
+                }
+              }}
               className="min-h-28 w-full rounded-lg border border-border bg-background px-3 py-2 pr-12"
               placeholder={t.placeholder}
             />
@@ -392,16 +411,25 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
           ))}
         </div>
 
-        {chat.length > 0 ? (
-          <div className="mt-6 space-y-3">
+        {chat.length > 0 || isLoading ? (
+          <div ref={qaHistoryRef} className="mt-6 space-y-3">
             <h3 className="text-lg font-semibold">{t.qaHistory}</h3>
-            <div className="space-y-2">
-              {buildQaPairs(chat)
-                .reverse()
-                .map((pair, index) => (
+            <div className="rounded-xl border border-border/70 bg-secondary/10 p-3">
+              {qaPairs[0]?.answer ? (
+                <p className="text-xs font-semibold text-primary">{t.latestAnswerReady}</p>
+              ) : isLoading ? (
+                <p className="text-xs font-semibold text-primary">{t.answerIncoming}</p>
+              ) : null}
+              <div className="mt-2 max-h-[520px] space-y-2 overflow-y-auto pr-1">
+                {qaPairs.map((pair, index) => (
                   <div
                     key={`${pair.question.slice(0, 24)}-${index}`}
-                    className="rounded-lg border border-border bg-secondary/20 p-3 text-sm"
+                    ref={index === 0 ? latestEntryRef : undefined}
+                    className={`rounded-lg border p-3 text-sm ${
+                      index === 0
+                        ? "border-primary/50 bg-background shadow-sm"
+                        : "border-border bg-secondary/20"
+                    }`}
                   >
                     <p className="mb-1 text-xs font-semibold text-muted-foreground">{t.you}</p>
                     <p className="whitespace-pre-line text-foreground">{pair.question}</p>
@@ -434,6 +462,7 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
                     ) : null}
                   </div>
                 ))}
+              </div>
             </div>
             {requestError ? (
               <div className="rounded-lg border border-danger/40 bg-danger/5 p-4 text-sm text-danger">

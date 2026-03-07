@@ -222,7 +222,7 @@ async function openCsvExportDialog(
         `${baseOrigin}/`,
         baseOrigin.includes("de-fr.my.glooko.com") ? "https://de-fr.my.glooko.com/" : "",
         baseOrigin.includes("my.glooko.com") ? "https://my.glooko.com/" : ""
-      ].filter((value): value is string => Boolean(value) && !isSignInUrl(value))
+      ].filter((value): value is string => typeof value === "string" && value.length > 0 && !isSignInUrl(value))
     )
   );
 

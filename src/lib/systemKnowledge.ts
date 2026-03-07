@@ -284,7 +284,7 @@ function buildRagKnowledgeEntries(sources: RagSource[]): KnowledgeEntry[] {
     systems: source.systems,
     keywords: source.keywords,
     answer:
-      `Nutze die offizielle ${source.product}-Dokumentation fuer Setup, Alarme, Fehlersuche und Sicherheitsgrenzen. Starte bei den Hersteller-Guides, gleiche dann mit deinem individuellen Profil und Verlaufsmustern ab.`,
+      `Nutze die offizielle ${source.product}-Dokumentation für Setup, Alarme, Fehlersuche und Sicherheitsgrenzen. Starte bei den Hersteller-Guides, gleiche dann mit deinem individuellen Profil und Verlaufsmustern ab.`,
     sourceLabel: source.sourceLabel,
     sourceUrl: source.sourceUrl,
     sourceType: source.category === "aid" ? "forum" : "manual",

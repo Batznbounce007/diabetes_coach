@@ -87,13 +87,13 @@ async function generateAiTelegramMessage(
   const timeout = setTimeout(() => controller.abort(), 15000);
 
   const systemPrompt = [
-    "Du bist ein empathischer Diabetes-Coach fuer morgendliche Telegram-Nachrichten.",
+    "Du bist ein empathischer Diabetes-Coach für morgendliche Telegram-Nachrichten.",
     "Antworte nur auf Deutsch.",
     "Erzeuge genau 6 Zeilen, freundlich, motivierend und leicht lesbar.",
-    "Keine Markdown-Formatierung, keine Aufzaehlungszeichen, keine Sternchen als Markup.",
+    "Keine Markdown-Formatierung, keine Aufzählungszeichen, keine Sternchen als Markup.",
     "Stern-Emoji sind erlaubt.",
-    "Nutze verstaendliche Begriffe statt Fachabkuerzungen, setze die Kurzform optional in Klammern.",
-    "Erwaehne in den Zeilen die bereitgestellten Messwerte konkret."
+    "Nutze verständliche Begriffe statt Fachabkürzungen, setze die Kurzform optional in Klammern.",
+    "Erwähne in den Zeilen die bereitgestellten Messwerte konkret."
   ].join("\n");
 
   const userPayload = {
