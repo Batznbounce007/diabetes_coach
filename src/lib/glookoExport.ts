@@ -96,21 +96,30 @@ async function selectFirstAvailable(
   return false;
 }
 
-async function setOneDayExportRange(page: Page): Promise<void> {
+function buildExportRangeRegex(days: number): RegExp {
+  if (days <= 1) return /1 day|1 Tag/i;
+  return new RegExp(`${days}\\s*(days?|tage?)`, "i");
+}
+
+export function getExportRangeLabels(days: number): string[] {
+  if (days <= 1) return ["1 Tag", "1 day"];
+  return [`${days} Tage`, `${days} days`];
+}
+
+async function setExportRange(page: Page, days: number): Promise<void> {
   const dialog = page.locator("[data-testid='dialog-export-to-csv']").first();
   if ((await dialog.count()) === 0) return;
 
-  const oneDayAlreadySelected =
-    (await dialog.locator("text=1 day").count()) > 0 ||
-    (await dialog.locator("text=1 Tag").count()) > 0;
-  if (oneDayAlreadySelected) return;
+  const rangeRegex = buildExportRangeRegex(days);
+  const alreadySelected = (await dialog.locator("span,div,button").filter({ hasText: rangeRegex }).count()) > 0;
+  if (alreadySelected) return;
 
   const combo = dialog.locator("[role='combobox']").first();
   if ((await combo.count()) > 0) {
     await combo.click({ force: true });
     const oneDayOption = page
       .locator("[role='option'], .dropdown__option")
-      .filter({ hasText: /1 day|1 Tag/i })
+      .filter({ hasText: rangeRegex })
       .first();
     if ((await oneDayOption.count()) > 0) {
       await oneDayOption.click({ force: true });
@@ -189,6 +198,7 @@ async function openCsvExportDialog(
   page: Page,
   day: string,
   baseOrigin: string,
+  days: number,
   exportUrl?: string
 ): Promise<void> {
   const exportSelectors = [
@@ -252,7 +262,7 @@ async function openCsvExportDialog(
     if (clicked) return;
   }
 
-  const debugPath = path.join(exportDir, `${day}-glooko-no-export-trigger`);
+  const debugPath = path.join(exportDir, `${day}-glooko-no-export-trigger-${days}d`);
   if (!page.isClosed()) {
     await page.screenshot({ path: `${debugPath}.png`, fullPage: true }).catch(() => undefined);
     await fs.writeFile(`${debugPath}.html`, await page.content(), "utf8").catch(() => undefined);
@@ -286,6 +296,9 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
       return "https://de-fr.my.glooko.com";
     }
   })();
+
+  const exportPeriodDays = Number.parseInt(process.env.GLOOKO_EXPORT_DAYS ?? "14", 10);
+  const days = Number.isNaN(exportPeriodDays) ? 14 : Math.max(1, exportPeriodDays);
 
   const browser = await chromium.launch({
     headless: process.env.GLOOKO_HEADLESS !== "false"
@@ -341,20 +354,25 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
       throw new Error(`Glooko login appears to have failed. Current URL: ${page.url()}`);
     }
 
-    await openCsvExportDialog(page, day, baseOrigin, exportUrl);
+    await openCsvExportDialog(page, day, baseOrigin, days, exportUrl);
 
     await page.waitForTimeout(500);
-    await selectFirstAvailable(
-      page,
-      [
-        "div[role='dialog'] select",
-        "select[aria-label*='Zeitraum']",
-        "select[name*='period']",
-        "select"
-      ],
-      "1 Tag"
-    ).catch(() => false);
-    await setOneDayExportRange(page).catch(() => undefined);
+    const rangeOptions = getExportRangeLabels(days);
+    for (const option of rangeOptions) {
+      const selected = await selectFirstAvailable(
+        page,
+        [
+          "div[role='dialog'] select",
+          "select[aria-label*='Zeitraum']",
+          "select[aria-label*='period']",
+          "select[name*='period']",
+          "select"
+        ],
+        option
+      ).catch(() => false);
+      if (selected) break;
+    }
+    await setExportRange(page, days).catch(() => undefined);
     const activePage = page;
 
     const exportSelectors = [

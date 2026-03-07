@@ -58,14 +58,29 @@ export async function parseGlookoCsv(csvContent: string): Promise<CgmSample[]> {
 export async function upsertReadings(samples: CgmSample[]): Promise<number> {
   if (samples.length === 0) return 0;
   const { prisma } = await import("@/lib/prisma");
+  const timestamps = samples.map((sample) => sample.timestamp.getTime());
+  const minTimestamp = new Date(Math.min(...timestamps));
+  const maxTimestamp = new Date(Math.max(...timestamps));
 
-  const result = await prisma.cgmReading.createMany({
-    data: samples.map((sample) => ({
-      source: "glooko",
-      timestamp: sample.timestamp,
-      glucose: Math.round(sample.glucose)
-    })),
-    skipDuplicates: true
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.cgmReading.deleteMany({
+      where: {
+        source: "glooko",
+        timestamp: {
+          gte: minTimestamp,
+          lte: maxTimestamp
+        }
+      }
+    });
+
+    return tx.cgmReading.createMany({
+      data: samples.map((sample) => ({
+        source: "glooko",
+        timestamp: sample.timestamp,
+        glucose: Math.round(sample.glucose)
+      })),
+      skipDuplicates: true
+    });
   });
 
   return result.count;

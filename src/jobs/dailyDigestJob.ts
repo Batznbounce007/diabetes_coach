@@ -10,7 +10,9 @@ async function runAnalysisForDay(day: Date): Promise<void> {
   const csvContent = await exportGlookoCsvForDay(dayString);
   const readings = await parseGlookoCsv(csvContent);
   await upsertReadings(readings);
-  await computeAndStoreDailySummary(day);
+  for (let i = 13; i >= 0; i -= 1) {
+    await computeAndStoreDailySummary(subDays(day, i));
+  }
 }
 
 async function runMorningMessage(): Promise<void> {
