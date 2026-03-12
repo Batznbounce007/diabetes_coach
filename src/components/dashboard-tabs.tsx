@@ -19,6 +19,7 @@ const tabs: Array<{
   value: DashboardTab;
   label: Record<Lang, string>;
   icon: typeof Activity;
+  iconOnly?: boolean;
 }> = [
   { value: "dashboard", label: { de: "Dashboard", en: "Dashboard" }, icon: Activity },
   { value: "coach", label: { de: "Diabetes Coach", en: "Diabetes Coach" }, icon: Sparkles },
@@ -28,8 +29,8 @@ const tabs: Array<{
     icon: MessageCircleQuestion
   },
   { value: "news", label: { de: "News & Forschung", en: "News & Research" }, icon: Newspaper },
-  { value: "share", label: { de: "Teilen", en: "Share" }, icon: Share2 },
-  { value: "carbs", label: { de: "KH schätzen", en: "Carb estimate" }, icon: Camera }
+  { value: "carbs", label: { de: "KH schätzen", en: "Carb estimate" }, icon: Camera },
+  { value: "share", label: { de: "Teilen", en: "Share" }, icon: Share2, iconOnly: true }
 ];
 
 export function DashboardTabs({
@@ -98,7 +99,7 @@ export function DashboardTabs({
                 }`}
               >
                 <Icon size={16} className={isActive ? "opacity-100" : "opacity-80"} />
-                <span>{tab.label[lang]}</span>
+                {!tab.iconOnly ? <span>{tab.label[lang]}</span> : null}
                 {isActive ? (
                   <span className="absolute inset-x-3 -bottom-1 h-0.5 rounded-full bg-primary-foreground/80" />
                 ) : null}
@@ -120,7 +121,7 @@ export function DashboardTabs({
               }`}
             >
               <Icon size={16} className={isActive ? "opacity-100" : "opacity-80"} />
-              <span>{tab.label[lang]}</span>
+              {!tab.iconOnly ? <span>{tab.label[lang]}</span> : null}
               {isActive ? (
                 <span className="absolute inset-x-3 -bottom-1 h-0.5 rounded-full bg-primary-foreground/80" />
               ) : null}

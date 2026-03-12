@@ -14,13 +14,11 @@ export function ShareEmailPanel({ subject, body, lang }: ShareEmailPanelProps) {
     lang === "de"
       ? {
           placeholder: "z. B. arzt@praxis.de",
-          action: "Per E-Mail teilen",
-          hint: "Öffnet dein Standard-Mailprogramm mit vorausgefülltem Betreff und Inhalt."
+          action: "Per E-Mail teilen"
         }
       : {
           placeholder: "e.g. doctor@clinic.com",
-          action: "Share via email",
-          hint: "Opens your default mail app with prefilled subject and content."
+          action: "Share via email"
         };
 
   const mailtoHref = useMemo(() => {
@@ -48,8 +46,6 @@ export function ShareEmailPanel({ subject, body, lang }: ShareEmailPanelProps) {
       >
         {t.action}
       </a>
-
-      <p className="text-xs text-muted-foreground">{t.hint}</p>
     </div>
   );
 }

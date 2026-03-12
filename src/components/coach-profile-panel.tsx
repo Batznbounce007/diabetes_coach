@@ -63,6 +63,7 @@ export function CoachProfilePanel({
   podcastMetrics,
   lang
 }: CoachProfilePanelProps) {
+  const savedProfileKey = `${storageKey}:saved`;
   const [profile, setProfile] = useState<CoachProfile>(emptyProfile);
   const [saved, setSaved] = useState(false);
   const [editing, setEditing] = useState(true);
@@ -90,7 +91,6 @@ export function CoachProfilePanel({
   const [planError, setPlanError] = useState("");
   const [podcastAudioUrl, setPodcastAudioUrl] = useState<string>("");
   const [podcastAudioLoading, setPodcastAudioLoading] = useState(false);
-  const [showPodcastDetails, setShowPodcastDetails] = useState(false);
   const t =
     lang === "de"
       ? {
@@ -125,7 +125,6 @@ export function CoachProfilePanel({
           open: "offen",
           coachImpulse: "Personalisierter Coach-Impuls",
           focusFromData: "Zusammenfassung",
-          focusSubtitle: "Kurz einordnen, was in deinem Zeitraum passiert ist.",
           actionPlanTitle: "Konkrete Verbesserungsmaßnahmen",
           actionPlanSubtitle: "Direkt umsetzbare Schritte für den Alltag",
           linkedGoal: "Verknüpftes Ziel",
@@ -161,8 +160,6 @@ export function CoachProfilePanel({
             "Sobald du ein primäres Ziel speicherst, bekommst du hier einen gezielten Ziel-Impuls."
           ,
           podcastTitle: "Coaching-Podcast",
-          podcastSubtitle:
-            "Erzeuge einen Dialog, der deine Werte, dein Profil und Best Practices aus relevanten Handbüchern zusammenführt.",
           podcastDuration: "Länge",
           podcastGenerate: "Podcast generieren",
           podcastLoading: "Podcast wird erstellt…",
@@ -181,13 +178,13 @@ export function CoachProfilePanel({
           detailedPlanError: "Detail-Coaching konnte gerade nicht geladen werden.",
           autoPlanHint: "Automatische Aktualisierung bei neuen Werten aktiv.",
           podcastAudioLoading: "Audio wird generiert…",
-          podcastAudioError: "Audio konnte gerade nicht erzeugt werden. Bitte später erneut versuchen.",
-          podcastDetailsToggle: "Podcast-Details anzeigen"
+          podcastAudioError: "Podcast konnte nicht erzeugt werden. Bitte erneut versuchen.",
+          podcastReady: "Podcast bereit. Jetzt anhören:"
           ,
           setupHintTitle: "So startest du richtig",
           setupStep1: "1. Links Profil ausfüllen und auf „Zielprofil speichern“ klicken.",
-          setupStep2: "2. Danach hier auf „Coach-Plan aktualisieren“ klicken.",
-          setupStep3: "3. Jetzt werden die Empfehlungen auf dein Profil zugeschnitten."
+          setupStep2: "2. Danach werden Coach-Empfehlungen automatisch auf dein Profil zugeschnitten.",
+          setupStep3: "3. Neue CGM-Importe aktualisieren die Empfehlungen ebenfalls automatisch."
         }
       : {
           title: "Personalize your Diabetes Coach",
@@ -221,7 +218,6 @@ export function CoachProfilePanel({
           open: "open",
           coachImpulse: "Personalized coach guidance",
           focusFromData: "Summary",
-          focusSubtitle: "Quick interpretation of your selected period.",
           actionPlanTitle: "Concrete improvement actions",
           actionPlanSubtitle: "Practical steps you can apply today",
           linkedGoal: "Linked goal",
@@ -257,8 +253,6 @@ export function CoachProfilePanel({
             "As soon as you save a primary goal, you will see targeted goal coaching here."
           ,
           podcastTitle: "Coaching Podcast",
-          podcastSubtitle:
-            "Generate a dialogue based on your metrics, profile, and best-practice guidance from manuals.",
           podcastDuration: "Length",
           podcastGenerate: "Generate podcast",
           podcastLoading: "Generating podcast…",
@@ -277,27 +271,33 @@ export function CoachProfilePanel({
           detailedPlanError: "Detailed coaching could not be loaded right now.",
           autoPlanHint: "Auto-update is active when new glucose data arrives.",
           podcastAudioLoading: "Generating audio…",
-          podcastAudioError: "Audio could not be generated right now. Please try again later.",
-          podcastDetailsToggle: "Show podcast details",
+          podcastAudioError: "Podcast could not be generated. Please try again.",
+          podcastReady: "Podcast ready. Listen now:",
           setupHintTitle: "How to start",
           setupStep1: "1. Fill out your profile on the left and click “Save goal profile”.",
-          setupStep2: "2. Then click “Refresh coach plan” here.",
-          setupStep3: "3. Recommendations will now be tailored to your profile."
+          setupStep2: "2. Coach recommendations are then tailored to your profile automatically.",
+          setupStep3: "3. New CGM imports also refresh recommendations automatically."
         };
 
   useEffect(() => {
     const raw = window.localStorage.getItem(storageKey);
     if (!raw) return;
+    const savedFlag = window.localStorage.getItem(savedProfileKey);
 
     try {
       const parsed = JSON.parse(raw) as CoachProfile;
-      setProfile({ ...emptyProfile, ...parsed });
-      setSaved(true);
-      setEditing(false);
+      const hydrated = { ...emptyProfile, ...parsed };
+      setProfile(hydrated);
+      const hasAnyData = Object.values(hydrated).some(
+        (value) => typeof value === "string" && value.trim().length > 0
+      );
+      const isSaved = savedFlag === "true" && hasAnyData;
+      setSaved(isSaved);
+      setEditing(!isSaved);
     } catch {
       // ignore invalid local data
     }
-  }, [lang]);
+  }, [lang, savedProfileKey]);
 
   const genderLabel =
     profile.gender === "female" ? t.female : profile.gender === "male" ? t.male : profile.gender === "diverse" ? t.diverse : t.genderOpen;
@@ -333,6 +333,7 @@ export function CoachProfilePanel({
     )
   ).slice(0, 4);
   const actionEmoji = ["🎯", "🛠️", "⏱️", "📈"];
+  const showPlanSkeleton = saved && !editing && !detailedPlan && !planError;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -398,6 +399,7 @@ export function CoachProfilePanel({
 
   function saveProfile() {
     window.localStorage.setItem(storageKey, JSON.stringify(profile));
+    window.localStorage.setItem(savedProfileKey, "true");
     setSaved(true);
     setEditing(false);
   }
@@ -450,10 +452,13 @@ export function CoachProfilePanel({
           dialogue: payload.podcast.dialogue
         })
       });
-      if (!audioResponse.ok) throw new Error("audio failed");
-      const blob = await audioResponse.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      setPodcastAudioUrl(objectUrl);
+      if (audioResponse.ok) {
+        const blob = await audioResponse.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        setPodcastAudioUrl(objectUrl);
+      } else {
+        throw new Error("audio generation failed");
+      }
     } catch {
       setPodcastError(t.podcastAudioError || t.podcastError);
     } finally {
@@ -716,32 +721,46 @@ export function CoachProfilePanel({
       <section className="rounded-2xl border border-border bg-card p-5">
         <h3 className="text-lg font-semibold">{t.coachImpulse}</h3>
         {!saved ? (
-          <div className="mt-3 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">
-            <p className="font-semibold text-primary">{t.setupHintTitle}</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-              <li>{t.setupStep1}</li>
-              <li>{t.setupStep2}</li>
-              <li>{t.setupStep3}</li>
-            </ul>
+          <div className="mt-2 text-sm text-muted-foreground">
+            <p className="font-semibold text-foreground">{t.setupHintTitle}</p>
+            <div className="mt-2 space-y-1">
+              <p>{t.setupStep1}</p>
+              <p>{t.setupStep2}</p>
+              <p>{t.setupStep3}</p>
+            </div>
           </div>
         ) : null}
 
         <div className="mt-3 rounded-lg bg-secondary/60 p-3 text-sm">
           <p className="font-semibold">{t.focusFromData}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{t.focusSubtitle}</p>
-          <p className="mt-2 text-muted-foreground">
-            {detailedPlan?.summary ?? recommendation}
-          </p>
+          {showPlanSkeleton ? (
+            <div className="mt-2 space-y-2">
+              <div className="h-4 w-11/12 animate-pulse rounded bg-muted/70" />
+              <div className="h-4 w-10/12 animate-pulse rounded bg-muted/70" />
+              <div className="h-4 w-8/12 animate-pulse rounded bg-muted/70" />
+            </div>
+          ) : (
+            <p className="mt-2 text-muted-foreground">
+              {detailedPlan?.summary ?? recommendation}
+            </p>
+          )}
         </div>
 
         <div className="mt-3 rounded-lg border border-border p-3 text-sm">
           <p className="font-semibold">{t.actionPlanTitle}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{t.actionPlanSubtitle}</p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            {planLoading ? t.detailedPlanLoading : t.autoPlanHint}
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t.actionPlanSubtitle}{" "}
+            {planLoading || showPlanSkeleton ? t.detailedPlanLoading : t.autoPlanHint}
           </p>
           {planError ? <p className="mt-1 text-xs text-danger">{planError}</p> : null}
-          {(detailedPlan?.actions ?? coachActions).length > 0 ? (
+          {showPlanSkeleton ? (
+            <div className="mt-2 space-y-2">
+              <div className="h-4 w-full animate-pulse rounded bg-muted/70" />
+              <div className="h-4 w-11/12 animate-pulse rounded bg-muted/70" />
+              <div className="h-4 w-10/12 animate-pulse rounded bg-muted/70" />
+              <div className="h-4 w-9/12 animate-pulse rounded bg-muted/70" />
+            </div>
+          ) : (detailedPlan?.actions ?? coachActions).length > 0 ? (
             <ul className="mt-2 list-disc space-y-2 pl-5 text-muted-foreground">
               {(detailedPlan?.actions ?? coachActions).map((action, index) => (
                 <li key={action}>
@@ -757,14 +776,20 @@ export function CoachProfilePanel({
 
         <div className="mt-3 rounded-lg border border-border p-3 text-sm">
           <p className="font-semibold">{t.motivation}</p>
-          <p className="mt-1 text-muted-foreground">
-            {detailedPlan?.motivation ?? motivationalMessage}
-          </p>
+          {showPlanSkeleton ? (
+            <div className="mt-1 space-y-2">
+              <div className="h-4 w-10/12 animate-pulse rounded bg-muted/70" />
+              <div className="h-4 w-8/12 animate-pulse rounded bg-muted/70" />
+            </div>
+          ) : (
+            <p className="mt-1 text-muted-foreground">
+              {detailedPlan?.motivation ?? motivationalMessage}
+            </p>
+          )}
         </div>
 
         <div className="mt-3 rounded-lg border border-border p-3 text-sm">
           <p className="font-semibold">{t.podcastTitle}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{t.podcastSubtitle}</p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <label className="text-xs text-muted-foreground">{t.podcastDuration}</label>
             <select
@@ -793,47 +818,18 @@ export function CoachProfilePanel({
             </div>
           ) : null}
 
-          {podcastResult ? (
+          {podcastResult && (podcastAudioLoading || Boolean(podcastAudioUrl)) ? (
             <div className="mt-3 space-y-3">
               <div className="rounded-lg border border-border/70 bg-background p-3">
-                <p className="text-sm font-semibold">{podcastResult.title}</p>
                 {podcastAudioLoading ? (
-                  <p className="mt-2 text-xs text-muted-foreground">{t.podcastAudioLoading}</p>
+                  <p className="text-xs text-muted-foreground">{t.podcastAudioLoading}</p>
                 ) : podcastAudioUrl ? (
-                  <audio className="mt-2 w-full" controls autoPlay src={podcastAudioUrl} />
+                  <>
+                    <p className="mb-2 text-xs text-muted-foreground">{t.podcastReady}</p>
+                    <audio className="w-full" controls autoPlay src={podcastAudioUrl} />
+                  </>
                 ) : null}
               </div>
-              <button
-                type="button"
-                onClick={() => setShowPodcastDetails((prev) => !prev)}
-                className="text-xs font-semibold text-muted-foreground underline"
-              >
-                {t.podcastDetailsToggle}
-              </button>
-              {showPodcastDetails ? (
-                <div className="rounded-lg border border-border/70 bg-secondary/20 p-3">
-                  <p className="text-xs font-semibold text-muted-foreground">{t.podcastSummary}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{podcastResult.summary}</p>
-                </div>
-              ) : null}
-              {showPodcastDetails ? (
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground">{t.podcastSources}</p>
-                  <div className="mt-1 space-y-1">
-                    {podcastResult.sources.map((source) => (
-                      <a
-                        key={`${source.label}-${source.url}`}
-                        href={source.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block text-xs text-primary underline"
-                      >
-                        {source.label}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
             </div>
           ) : null}
         </div>

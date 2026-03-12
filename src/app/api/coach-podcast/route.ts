@@ -51,8 +51,8 @@ const responseSchema = z.object({
         line: z.string().min(1)
       })
     )
-    .min(6)
-    .max(24),
+    .min(10)
+    .max(80),
   sources: z.array(z.object({ label: z.string(), url: z.string() })).min(2).max(6)
 });
 
@@ -112,23 +112,36 @@ async function generateCoachPodcast(payload: z.infer<typeof requestSchema>) {
     sourceUrl: entry.sourceUrl,
     guidance: entry.answer
   }));
+  const targetTurnsByMinutes: Record<3 | 5 | 8 | 12, number> = {
+    3: 14,
+    5: 22,
+    8: 34,
+    12: 48
+  };
+  const targetTurns = targetTurnsByMinutes[payload.durationMinutes];
 
   const systemPrompt =
     payload.lang === "de"
       ? [
-          "Du erzeugst ein Coaching-Podcast-Skript für Diabetes-Therapie.",
+          "Du erzeugst ein hochwertiges Coaching-Podcast-Skript für Diabetes-Therapie im Stil eines natürlichen Dialogs.",
           "Die Sprache ist Deutsch.",
           "Nutze nur JSON mit Keys: title, summary, keyActions, dialogue, sources.",
-          "dialogue: natürlicher Dialog zwischen coach und you, alltagsnah, konkret, motivierend.",
-          "Leite Maßnahmen aus Werten, Profil und Best Practices ab.",
+          `dialogue: exakt ${targetTurns} Sprecherwechsel mit abwechselnden Rollen coach/you.`,
+          "Der Dialog soll menschlich wirken: Rückfragen, kurze Reaktionen, Klarstellungen, kleine Zusammenfassungen.",
+          "Inhaltlich tief: konkrete Therapie-Hebel, konkrete Alltagsschritte, Priorisierung (1., 2., 3. Hebel).",
+          "Coach-Ton: motivierend, diszipliniert, positiv, aber respektvoll.",
+          "Leite Maßnahmen streng aus Werten, Profil und Best Practices ab und nenne keine medizinischen Diagnosen.",
           "Keine Markdown-Symbole."
         ].join("\n")
       : [
-          "Create a diabetes coaching podcast script.",
+          "Create a high-quality diabetes coaching podcast script with natural conversational flow.",
           "Language must be English.",
           "Return JSON only with keys: title, summary, keyActions, dialogue, sources.",
-          "dialogue: natural conversation between coach and you, concrete and motivating.",
-          "Derive actions from metrics, profile, and best-practice sources.",
+          `dialogue: exactly ${targetTurns} turns, alternating coach/you roles.`,
+          "Make it human and dynamic: follow-up questions, clarifications, short recaps, practical coaching moments.",
+          "Depth: concrete therapy levers, concrete daily actions, ranked priorities (1st, 2nd, 3rd lever).",
+          "Coach tone: motivating, disciplined, positive, respectful.",
+          "Derive actions from metrics, profile, and best-practice sources; do not make diagnoses.",
           "No markdown symbols."
         ].join("\n");
 
@@ -147,6 +160,7 @@ async function generateCoachPodcast(payload: z.infer<typeof requestSchema>) {
           role: "user",
           content: JSON.stringify({
             durationMinutes: payload.durationMinutes,
+            targetTurns,
             profile: { ...emptyCoachProfile, ...(payload.profile ?? {}) },
             metrics: payload.metrics,
             coaching: payload.coaching,
@@ -193,12 +207,16 @@ export async function POST(request: NextRequest) {
               "Nutze einen kurzen Tagesrückblick für den nächsten Feinschliff."
             ],
             dialogue: [
-              { speaker: "coach", line: "Heute schauen wir auf deinen Verlauf und setzen klare Prioritäten." },
-              { speaker: "you", line: "Ich möchte meine Werte stabiler bekommen und besser reagieren." },
-              { speaker: "coach", line: "Starte mit dem ersten Hebel: Mahlzeiten-Timing und realistische Kohlenhydrat-Schätzung." },
-              { speaker: "you", line: "Wie erkenne ich schnell, ob ich richtig liege?" },
-              { speaker: "coach", line: "Vergleiche den Trend 60 bis 120 Minuten nach der Mahlzeit und passe kleine Schritte an." },
-              { speaker: "you", line: "Gut, das kann ich direkt umsetzen." }
+              { speaker: "coach", line: "Heute gehen wir strukturiert durch deine Werte und setzen klare Prioritäten." },
+              { speaker: "you", line: "Super, ich will konkrete Schritte statt nur Theorie." },
+              { speaker: "coach", line: "Erster Hebel: Timing vor Mahlzeiten. Wenn du 10 bis 20 Minuten früher bolst, sinken häufig Spitzen." },
+              { speaker: "you", line: "Und wenn die Werte trotzdem lange hoch bleiben?" },
+              { speaker: "coach", line: "Dann ist Hebel zwei deine Kohlenhydrat-Schätzung. Für 5 Tage konsequent abwiegen und mit deinem Verlauf abgleichen." },
+              { speaker: "you", line: "Wie erkenne ich schnell, ob das wirkt?" },
+              { speaker: "coach", line: "Checke 60 bis 120 Minuten nach dem Essen. Wenn die Kurve flacher wird, bist du auf Kurs." },
+              { speaker: "you", line: "Klingt machbar. Was ist Hebel drei?" },
+              { speaker: "coach", line: "Hebel drei: täglicher Mini-Review am Abend. Nur zwei Fragen: Was hat gut funktioniert? Was passe ich morgen minimal an?" },
+              { speaker: "you", line: "Das gibt mir einen klaren Plan." }
             ],
             sources: fallbackSources
           }
@@ -212,12 +230,16 @@ export async function POST(request: NextRequest) {
               "Do a short end-of-day review and adjust one lever."
             ],
             dialogue: [
-              { speaker: "coach", line: "Today we review your trend and focus on the highest-impact actions." },
-              { speaker: "you", line: "I want more stable values and clearer decisions." },
-              { speaker: "coach", line: "Start with meal timing and realistic carb estimation." },
-              { speaker: "you", line: "How do I quickly know if it worked?" },
-              { speaker: "coach", line: "Check your trend 60 to 120 minutes after meals and adjust in small steps." },
-              { speaker: "you", line: "Great, I can implement that today." }
+              { speaker: "coach", line: "Today we turn your data into a clear plan with top-priority actions." },
+              { speaker: "you", line: "Great. I need practical steps, not generic advice." },
+              { speaker: "coach", line: "First lever: pre-meal timing. A 10-20 minute lead can reduce meal spikes." },
+              { speaker: "you", line: "What if highs still stay elevated for too long?" },
+              { speaker: "coach", line: "Second lever: carb estimation precision. Weigh and compare outcomes for five days." },
+              { speaker: "you", line: "How do I verify quickly if it works?" },
+              { speaker: "coach", line: "Review the curve at 60-120 minutes post meal. A flatter rise means better control." },
+              { speaker: "you", line: "Makes sense. What is the third lever?" },
+              { speaker: "coach", line: "Third lever: evening micro-review. Ask: what worked today, and what one tweak for tomorrow?" },
+              { speaker: "you", line: "Perfect, that gives me a concrete routine." }
             ],
             sources: fallbackSources
           };

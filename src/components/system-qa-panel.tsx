@@ -49,6 +49,10 @@ type QaPair = {
 type SystemQaPanelProps = {
   lang: "de" | "en";
 };
+type SubmitQueryOptions = {
+  clearInputOnSubmit?: boolean;
+  clearInputOnFinish?: boolean;
+};
 
 const starterQuestionsDe = [
   "Hohe Werte nach Abendessen im Closed Loop senken",
@@ -144,7 +148,7 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
       ? {
           title: "Ask anything!",
           subtitle:
-            "Stelle gezielte Fragen zu Pumpe, CGM und Closed Loop. Antworten basieren auf Handbüchern, Dokumentationen und Praxisquellen.",
+            "Stelle gezielte Fragen zu Pumpe, CGM und Closed Loop. Antworten basieren auf Handbüchern und Dokumentationen.",
           placeholder:
             "z. B. Was ist der beste erste Schritt bei häufigen hohen Werten nach dem Essen?",
           stopRecording: "Aufnahme stoppen",
@@ -159,21 +163,17 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
           speechActive: "Ich höre zu... sprich jetzt deine Frage.",
           speechStartError: "Mikrofon konnte nicht gestartet werden.",
           qaHistory: "Antworten & Rückfragen",
-          latestAnswerReady: "Deine Antwort ist da",
           answerIncoming: "Antwort wird erstellt…",
           you: "Du",
           coach: "Diabetes Coach",
           sources: "Quellen",
-          sourceHint: "Die passenden Quellen findest du direkt unter jeder Antwort.",
           requestError:
             "Gerade konnte keine Antwort geladen werden. Bitte erneut versuchen oder die Frage etwas konkreter formulieren.",
           noAnswer:
             "Aktuell kann ich keine Antwort laden. Bitte versuche es erneut oder stelle die Frage genauer mit System, Zeitpunkt und Situation.",
           sourceCatalog: "Quellenkatalog",
           sourceCatalogSubtitle:
-            "Grundlage für fachgerechte Antworten mit Handbüchern, Dokumentationen und Praxisquellen.",
-          medicalNote:
-            "Medizinischer Hinweis: Antworten dienen als Orientierung und ersetzen keine ärztliche Beratung."
+            "Grundlage für fachgerechte Antworten mit Handbüchern und Dokumentationen.",
         }
       : {
           title: "Ask anything!",
@@ -192,12 +192,10 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
           speechActive: "Listening... ask your question now.",
           speechStartError: "Could not start microphone.",
           qaHistory: "Answers & follow-ups",
-          latestAnswerReady: "Your answer is ready",
           answerIncoming: "Generating answer…",
           you: "You",
           coach: "Diabetes Coach",
           sources: "Sources",
-          sourceHint: "Relevant sources are listed directly under each answer.",
           requestError:
             "Could not load an answer right now. Please try again or ask a more specific question.",
           noAnswer:
@@ -205,8 +203,6 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
           sourceCatalog: "Source catalog",
           sourceCatalogSubtitle:
             "Evidence base for expert answers with manuals, documentation, and practical references.",
-          medicalNote:
-            "Medical note: Answers are for guidance and do not replace professional medical advice."
         };
 
   const starterQuestions = useMemo(
@@ -267,16 +263,19 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
     };
   }, [lang, t.speechError, t.speechRecognized]);
 
-  async function submitQuery(nextQuestion: string) {
+  async function submitQuery(nextQuestion: string, options: SubmitQueryOptions = {}) {
     const cleaned = nextQuestion.trim();
     if (cleaned.length < 3) return;
+    const { clearInputOnSubmit = true, clearInputOnFinish = false } = options;
 
     const nextProfile = loadProfileFromStorage();
     setIsLoading(true);
     setRequestError("");
     const nextHistory = [...chat, { role: "user", content: cleaned } satisfies ChatMessage];
     setChat(nextHistory);
-    setQuestion("");
+    if (clearInputOnSubmit) {
+      setQuestion("");
+    }
 
     try {
       const response = await fetch("/api/system-qa", {
@@ -322,6 +321,9 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
         }
       ]);
     } finally {
+      if (clearInputOnFinish) {
+        setQuestion("");
+      }
       setIsLoading(false);
     }
   }
@@ -402,7 +404,12 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
               type="button"
               onClick={() => {
                 setQuestion(preset);
-                void submitQuery(preset);
+                window.setTimeout(() => {
+                  void submitQuery(preset, {
+                    clearInputOnSubmit: false,
+                    clearInputOnFinish: true
+                  });
+                }, 120);
               }}
               className="rounded-full border border-border bg-secondary/40 px-3 py-1 text-xs"
             >
@@ -415,9 +422,7 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
           <div ref={qaHistoryRef} className="mt-6 space-y-3">
             <h3 className="text-lg font-semibold">{t.qaHistory}</h3>
             <div className="rounded-xl border border-border/70 bg-secondary/10 p-3">
-              {qaPairs[0]?.answer ? (
-                <p className="text-xs font-semibold text-primary">{t.latestAnswerReady}</p>
-              ) : isLoading ? (
+              {isLoading ? (
                 <p className="text-xs font-semibold text-primary">{t.answerIncoming}</p>
               ) : null}
               <div className="mt-2 max-h-[520px] space-y-2 overflow-y-auto pr-1">
@@ -425,11 +430,7 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
                   <div
                     key={`${pair.question.slice(0, 24)}-${index}`}
                     ref={index === 0 ? latestEntryRef : undefined}
-                    className={`rounded-lg border p-3 text-sm ${
-                      index === 0
-                        ? "border-primary/50 bg-background shadow-sm"
-                        : "border-border bg-secondary/20"
-                    }`}
+                    className="rounded-lg border border-border bg-secondary/20 p-3 text-sm"
                   >
                     <p className="mb-1 text-xs font-semibold text-muted-foreground">{t.you}</p>
                     <p className="whitespace-pre-line text-foreground">{pair.question}</p>
@@ -469,7 +470,6 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
                 {requestError}
               </div>
             ) : null}
-            {!isLoading ? <p className="text-xs text-muted-foreground">{t.sourceHint}</p> : null}
           </div>
         ) : null}
       </section>
@@ -492,10 +492,6 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
             </li>
           ))}
         </ul>
-
-        <div className="mt-4 rounded-lg bg-secondary/60 p-3 text-xs text-muted-foreground">
-          {t.medicalNote}
-        </div>
       </aside>
     </div>
   );

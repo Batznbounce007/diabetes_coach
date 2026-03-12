@@ -8,7 +8,6 @@ import { DailyTirChart } from "@/components/daily-tir-chart";
 import { NewsFeedPanel } from "@/components/news-feed-panel";
 import { TirDistribution } from "@/components/tir-distribution";
 import { ShareEmailPanel } from "@/components/share-email-panel";
-import { ShareRangeFilter } from "@/components/share-range-filter";
 import { SystemQaPanel } from "@/components/system-qa-panel";
 import { SummaryKpi } from "@/components/summary-kpi";
 import { Card } from "@/components/ui/card";
@@ -97,22 +96,31 @@ function parseChartMode(value: string | undefined): ChartMode {
 }
 
 async function loadReadings(from: Date, to: Date): Promise<CgmSample[]> {
-  const readings = await prisma.cgmReading.findMany({
-    where: {
-      timestamp: {
-        gte: from,
-        lte: to
-      }
-    },
-    orderBy: {
-      timestamp: "asc"
-    }
-  });
+  try {
+    const readings = await Promise.race([
+      prisma.cgmReading.findMany({
+        where: {
+          timestamp: {
+            gte: from,
+            lte: to
+          }
+        },
+        orderBy: {
+          timestamp: "asc"
+        }
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("DB timeout")), 3000)
+      )
+    ]);
 
-  return readings.map((reading) => ({
-    timestamp: reading.timestamp,
-    glucose: reading.glucose
-  }));
+    return readings.map((reading) => ({
+      timestamp: reading.timestamp,
+      glucose: reading.glucose
+    }));
+  } catch {
+    return [];
+  }
 }
 
 function calculateMedian(readings: CgmSample[]): number {
@@ -140,6 +148,22 @@ function buildRangeLabel(range: string, lang: Lang): string {
   return "selected period";
 }
 
+function buildRangeOptionLabel(range: string, lang: Lang, now: Date): string {
+  const days = getRangeDays(range);
+  const start = startOfDay(subDays(now, days - 1));
+  const end = endOfDay(now);
+  const formatted = `${format(start, "dd.MM.yyyy")} - ${format(end, "dd.MM.yyyy")}`;
+  if (lang === "de") {
+    if (range === "1d") return `1 Tag (${formatted})`;
+    if (range === "7d") return `7 Tage (${formatted})`;
+    if (range === "14d") return `14 Tage (${formatted})`;
+    if (range === "30d") return `30 Tage (${formatted})`;
+    return `${days} Tage (${formatted})`;
+  }
+  if (range === "1d") return `1 day (${formatted})`;
+  return `${days} days (${formatted})`;
+}
+
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const resolvedSearchParams = (await searchParams) ?? {};
   const tab = parseTab(getParam(resolvedSearchParams.tab));
@@ -152,11 +176,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   });
 
   const now = new Date();
-  const latestSummary = await prisma.dailySummary.findFirst({
-    orderBy: {
-      day: "desc"
-    }
-  });
+  const latestSummary = await prisma.dailySummary
+    .findFirst({
+      orderBy: {
+        day: "desc"
+      }
+    })
+    .catch(() => null);
 
   let filteredReadings: CgmSample[] = [];
   let chartPoints: Array<{ time: string; glucose: number }> = [];
@@ -260,13 +286,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const lowLabel = lang === "de" ? "Niedrig" : "Low";
   const inRangeLabel = lang === "de" ? "Zielbereich" : "In range";
   const highLabel = lang === "de" ? "Hoch" : "High";
-  const coachingSummaryLabel = lang === "de" ? "Coaching-Einschätzung" : "Coaching assessment";
+  const coachingSummaryLabel = lang === "de" ? "Diabetes Coach" : "Diabetes Coach";
   const coachingActionsLabel = lang === "de" ? "Therapie-Fokus (wichtigste Hebel)" : "Therapy focus (key levers)";
   const shareTitle = lang === "de" ? "Teilen" : "Share";
   const shareText =
     lang === "de"
-      ? "Diese kompakte Zusammenfassung kannst du per E-Mail mit deinem Behandlungsteam teilen."
-      : "Share this compact summary via email with your care team.";
+      ? "Diese Zusammenfassung kannst du per E-Mail mit deinem Behandlungsteam teilen."
+      : "Share this summary via email with your care team.";
 
   const langParams = new URLSearchParams({
     tab,
@@ -342,10 +368,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   defaultValue={filters.range}
                   className="h-10 w-full rounded-lg border border-border bg-background px-3"
                 >
-                  <option value="1d">1 Tag</option>
-                  <option value="7d">7 Tage</option>
-                  <option value="14d">14 Tage</option>
-                  <option value="30d">30 Tage</option>
+                  <option value="1d">{buildRangeOptionLabel("1d", lang, now)}</option>
+                  <option value="7d">{buildRangeOptionLabel("7d", lang, now)}</option>
+                  <option value="14d">{buildRangeOptionLabel("14d", lang, now)}</option>
+                  <option value="30d">{buildRangeOptionLabel("30d", lang, now)}</option>
                 </select>
               </label>
 
@@ -459,6 +485,14 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             <Card className="space-y-4">
               <h2 className="text-lg font-semibold">{coachingTitle}</h2>
               <p className="text-sm text-muted-foreground">{coachingAssessment}</p>
+              <TirDistribution
+                lowPercent={lowPercent}
+                inRangePercent={inRangePercent}
+                highPercent={highPercent}
+                lowLabel={lowLabel}
+                inRangeLabel={inRangeLabel}
+                highLabel={highLabel}
+              />
               <div className="rounded-xl border border-border bg-secondary/30 p-4">
                 <p className="text-sm font-semibold">{coachingSummaryLabel}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{coachingAssessment}</p>
@@ -473,14 +507,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   </>
                 ) : null}
               </div>
-              <TirDistribution
-                lowPercent={lowPercent}
-                inRangePercent={inRangePercent}
-                highPercent={highPercent}
-                lowLabel={lowLabel}
-                inRangeLabel={inRangeLabel}
-                highLabel={highLabel}
-              />
               <div className="rounded-xl bg-secondary/70 p-4">
                 <p className="text-sm font-semibold">{motivationTitle}</p>
                 <p className="mt-1 text-sm text-secondary-foreground">{motivationBoost}</p>
@@ -551,12 +577,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           <Card className="space-y-3">
             <h2 className="text-xl font-semibold">{shareTitle}</h2>
             <p className="text-sm text-muted-foreground">{shareText}</p>
-            <ShareRangeFilter
-              lang={lang}
-              currentRange={filters.range}
-              chartMode={chartMode}
-              timeBucket={filters.timeBucket}
-            />
             <ShareEmailPanel subject={emailSubject} body={emailBody} lang={lang} />
           </Card>
 

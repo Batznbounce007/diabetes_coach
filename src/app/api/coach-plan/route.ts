@@ -109,6 +109,7 @@ async function generatePlan(payload: z.infer<typeof requestSchema>) {
           "Jede Maßnahme mit messbarer Routine (z. B. Timing, Frequenz, Kontrollzeitpunkt).",
           "motivation: 2-3 Sätze mit starker Startenergie für heute.",
           "tone: praise | push | balanced.",
+          "Runde TIR (%) und Durchschnitt (mg/dL) immer auf ganze Zahlen.",
           "Kein Markdown."
         ].join("\n")
       : [
@@ -121,8 +122,16 @@ async function generatePlan(payload: z.infer<typeof requestSchema>) {
           "Each action must include a measurable routine (timing/frequency/checkpoint).",
           "motivation: 2-3 sentences with strong momentum for today.",
           "tone: praise | push | balanced.",
+          "Always round TIR (%) and average (mg/dL) to whole numbers.",
           "No markdown."
         ].join("\n");
+
+  const roundedMetrics = {
+    ...payload.metrics,
+    tirPercent: Math.round(payload.metrics.tirPercent),
+    avgGlucose: Math.round(payload.metrics.avgGlucose),
+    stdDev: Math.round(payload.metrics.stdDev)
+  };
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
@@ -139,7 +148,7 @@ async function generatePlan(payload: z.infer<typeof requestSchema>) {
           role: "user",
           content: JSON.stringify({
             profile: { ...emptyCoachProfile, ...(payload.profile ?? {}) },
-            metrics: payload.metrics,
+            metrics: roundedMetrics,
             practices
           })
         }

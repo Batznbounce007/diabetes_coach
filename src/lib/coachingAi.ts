@@ -63,6 +63,7 @@ export async function generateCoachingCopy(
           "assessment: genau 1 Satz, datenbasiert für den gewählten Zeitraum.",
           "actions: 2-3 konkrete Therapie-Hebel als kurze Sätze (keine Aufzählungssymbole).",
           "motivation: sehr positiv, umsetzungsorientiert, Startenergie für heute.",
+          "Runde TIR (%) und Durchschnitt (mg/dL) immer auf ganze Zahlen.",
           "Kein Markdown, keine Sternchen, keine zusätzlichen Keys."
         ].join("\n")
       : [
@@ -72,15 +73,20 @@ export async function generateCoachingCopy(
           "assessment: exactly 1 sentence, data-based for the selected period.",
           "actions: 2-3 concrete therapy levers as short sentences.",
           "motivation: highly positive and action-oriented to help start today.",
+          "Always round TIR (%) and average (mg/dL) to whole numbers.",
           "No markdown and no extra keys."
         ].join("\n");
 
+  const roundedTir = Math.round(input.tirPercent);
+  const roundedAvg = Math.round(input.avgGlucose);
+  const roundedStdDev = Math.round(input.stdDev);
+
   const userPayload = {
     period: input.rangeLabel,
-    tirPercent: input.tirPercent,
-    avgMgDl: input.avgGlucose,
+    tirPercent: roundedTir,
+    avgMgDl: roundedAvg,
     medianMgDl: input.medianGlucose,
-    stdDevMgDl: input.stdDev,
+    stdDevMgDl: roundedStdDev,
     coefficientVariancePercent: input.cv,
     lowPercent: input.lowPercent,
     inRangePercent: input.inRangePercent,
