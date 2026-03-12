@@ -6,6 +6,7 @@ import AdmZip from "adm-zip";
 const exportDir = path.resolve(process.cwd(), "exports");
 
 const defaultLoginUrl = "https://de-fr.my.glooko.com/users/sign_in";
+const preferredHost = "https://de-fr.my.glooko.com";
 
 function isSignInUrl(url: string): boolean {
   return /\/users\/sign[_-]?in/i.test(url);
@@ -281,7 +282,7 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
   const email = process.env.GLOOKO_EMAIL;
   const password = process.env.GLOOKO_PASSWORD;
   const loginUrl = process.env.GLOOKO_LOGIN_URL ?? defaultLoginUrl;
-  const preferredHomeUrl = process.env.GLOOKO_HOME_URL ?? "https://de-fr.my.glooko.com/";
+  const preferredHomeUrl = process.env.GLOOKO_HOME_URL ?? `${preferredHost}/`;
   const exportUrl = process.env.GLOOKO_EXPORT_URL;
 
   if (!email || !password) {
@@ -365,10 +366,14 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
     }
 
     if (isSignInUrl(page.url())) {
-      throw new Error(`Glooko login appears to have failed. Current URL: ${page.url()}`);
+      throw new Error(
+        `Glooko login failed or was blocked. Still on sign-in: ${page.url()}. ` +
+          "Possible causes: wrong credentials, 2FA/Captcha, or region mismatch. " +
+          `Expected host: ${preferredHost}.`
+      );
     }
 
-    if (!page.url().startsWith("https://de-fr.my.glooko.com")) {
+    if (!page.url().startsWith(preferredHost)) {
       await page.goto(preferredHomeUrl, { waitUntil: "domcontentloaded" }).catch(() => undefined);
     }
 
