@@ -8,8 +8,15 @@ import { refreshNewsCache } from "@/lib/news";
 async function runAnalysisForDay(day: Date): Promise<void> {
   const dayString = day.toISOString().slice(0, 10);
   const csvContent = await exportGlookoCsvForDay(dayString);
-  const csvLineCount = csvContent.split(/\r?\n/).filter((line) => line.trim().length > 0).length;
+  const csvLines = csvContent.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  const csvLineCount = csvLines.length;
+  const firstLine = csvLines[0] ?? "";
+  const headerLine =
+    csvLines.find((line) => /timestamp|zeit|glucose|glukose|cgm/i.test(line)) ?? firstLine;
+  const delimiter =
+    headerLine.includes(";") && !headerLine.includes(",") ? ";" : headerLine.includes(",") ? "," : "unknown";
   console.log(`[analysis] csv_lines=${csvLineCount} day=${dayString}`);
+  console.log(`[analysis] csv_header="${headerLine.replace(/"/g, "'")}" delimiter=${delimiter}`);
   const readings = await parseGlookoCsv(csvContent);
   console.log(`[analysis] parsed_readings=${readings.length} day=${dayString}`);
   await upsertReadings(readings);
