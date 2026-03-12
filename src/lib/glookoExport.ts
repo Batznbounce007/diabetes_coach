@@ -5,7 +5,7 @@ import AdmZip from "adm-zip";
 
 const exportDir = path.resolve(process.cwd(), "exports");
 
-const defaultLoginUrl = "https://de-fr.my.glooko.com/users/sign_in";
+const defaultLoginUrl = "https://de-fr.my.glooko.com/users/sign_in?locale=de";
 const preferredHost = "https://de-fr.my.glooko.com";
 
 function isSignInUrl(url: string): boolean {
@@ -308,12 +308,25 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
 
   let page: Page | null = null;
   try {
-    const context = await browser.newContext({ acceptDownloads: true });
+    const context = await browser.newContext({
+      acceptDownloads: true,
+      locale: "de-DE",
+      timezoneId: "Europe/Berlin",
+      extraHTTPHeaders: {
+        "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7"
+      }
+    });
     page = await context.newPage();
 
     const performLogin = async (targetUrl: string): Promise<void> => {
       await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
       await dismissCookieOverlay(page);
+      await page
+        .evaluate(() => {
+          const localeInput = document.querySelector<HTMLInputElement>("#localeInput");
+          if (localeInput) localeInput.value = "de";
+        })
+        .catch(() => undefined);
 
       const emailFilled = await fillFirstAvailable(
         page,
