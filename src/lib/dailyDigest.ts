@@ -40,9 +40,26 @@ export async function computeAndStoreDailySummary(day: Date): Promise<DailyInsig
 
 export async function sendDailySummaryMessage(day: Date): Promise<void> {
   const dayStart = startOfDay(day);
-  const summary = await prisma.dailySummary.findUnique({
+  let summary = await prisma.dailySummary.findUnique({
     where: { day: dayStart }
   });
+
+  const isEmptySummary = (value: typeof summary): boolean => {
+    if (!value) return true;
+    if (value.tirPercent === 0 && value.stdDev === 0) return true;
+    if (value.recommendation.toLowerCase().includes("no data found")) return true;
+    return false;
+  };
+
+  if (isEmptySummary(summary)) {
+    summary = await prisma.dailySummary.findFirst({
+      where: {
+        tirPercent: { gt: 0 },
+        stdDev: { gt: 0 }
+      },
+      orderBy: { day: "desc" }
+    });
+  }
 
   if (!summary) {
     throw new Error(
@@ -59,7 +76,7 @@ export async function sendDailySummaryMessage(day: Date): Promise<void> {
     motivationalMessage: summary.motivationalMessage
   };
 
-  await sendDailyTelegram(insight, dayStart.toISOString().slice(0, 10));
+  await sendDailyTelegram(insight, summary.day.toISOString().slice(0, 10));
 }
 
 export async function runDailyDigest(day: Date): Promise<void> {
