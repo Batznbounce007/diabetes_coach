@@ -171,8 +171,7 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
           noAnswer:
             "Aktuell kann ich keine Antwort laden. Bitte versuche es erneut oder stelle die Frage genauer mit System, Zeitpunkt und Situation.",
           sourceCatalog: "Quellenkatalog",
-          sourceCatalogSubtitle:
-            "Grundlage für fachgerechte Antworten mit Handbüchern und Dokumentationen.",
+          sourceCatalogSubtitle: "Antworten links basieren auf diesen Quellen.",
         }
       : {
           title: "Ask anything!",
@@ -199,8 +198,7 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
           noAnswer:
             "I cannot load an answer right now. Please try again and include your system, timing, and context.",
           sourceCatalog: "Source catalog",
-          sourceCatalogSubtitle:
-            "Evidence base for expert answers with manuals, documentation, and practical references.",
+          sourceCatalogSubtitle: "Answers on the left are based on these sources.",
         };
 
   const starterQuestions = useMemo(

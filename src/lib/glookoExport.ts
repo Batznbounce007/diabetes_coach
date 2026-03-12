@@ -281,6 +281,7 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
   const email = process.env.GLOOKO_EMAIL;
   const password = process.env.GLOOKO_PASSWORD;
   const loginUrl = process.env.GLOOKO_LOGIN_URL ?? defaultLoginUrl;
+  const preferredHomeUrl = process.env.GLOOKO_HOME_URL ?? "https://de-fr.my.glooko.com/";
   const exportUrl = process.env.GLOOKO_EXPORT_URL;
 
   if (!email || !password) {
@@ -309,49 +310,66 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
     const context = await browser.newContext({ acceptDownloads: true });
     page = await context.newPage();
 
-    await page.goto(loginUrl, { waitUntil: "domcontentloaded" });
-    await dismissCookieOverlay(page);
+    const performLogin = async (targetUrl: string): Promise<void> => {
+      await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+      await dismissCookieOverlay(page);
 
-    const emailFilled = await fillFirstAvailable(
-      page,
-      [
-        "input[type='email']",
-        "input[name='email']",
-        "input[name='user[email]']",
-        "#email"
-      ],
-      email
-    );
-    if (!emailFilled) {
-      throw new Error("Could not locate Glooko email input.");
+      const emailFilled = await fillFirstAvailable(
+        page,
+        [
+          "input[type='email']",
+          "input[name='email']",
+          "input[name='user[email]']",
+          "#email"
+        ],
+        email
+      );
+      if (!emailFilled) {
+        throw new Error("Could not locate Glooko email input.");
+      }
+
+      const passwordFilled = await fillFirstAvailable(
+        page,
+        [
+          "input[type='password']",
+          "input[name='password']",
+          "input[name='user[password]']",
+          "#password"
+        ],
+        password
+      );
+      if (!passwordFilled) {
+        throw new Error("Could not locate Glooko password input.");
+      }
+
+      await clickFirstAvailable(
+        page,
+        [
+          "button[type='submit']",
+          "input[type='submit']",
+          "button:has-text('Sign in')",
+          "button:has-text('Log in')",
+          "button:has-text('Anmelden')",
+          "input[value*='Anmelden']"
+        ],
+        { force: true }
+      );
+
+      await waitForLoginTransition(page, 45_000);
+    };
+
+    await performLogin(loginUrl);
+
+    if (isSignInUrl(page.url()) && page.url().includes("us.my.glooko.com")) {
+      await performLogin(defaultLoginUrl);
     }
 
-    const passwordFilled = await fillFirstAvailable(
-      page,
-      [
-        "input[type='password']",
-        "input[name='password']",
-        "input[name='user[password]']",
-        "#password"
-      ],
-      password
-    );
-    if (!passwordFilled) {
-      throw new Error("Could not locate Glooko password input.");
-    }
-
-    await clickFirstAvailable(page, [
-      "button[type='submit']",
-      "input[type='submit']",
-      "button:has-text('Sign in')",
-      "button:has-text('Log in')",
-      "button:has-text('Anmelden')",
-      "input[value*='Anmelden']"
-    ], { force: true });
-
-    await waitForLoginTransition(page, 45_000);
     if (isSignInUrl(page.url())) {
       throw new Error(`Glooko login appears to have failed. Current URL: ${page.url()}`);
+    }
+
+    if (!page.url().startsWith("https://de-fr.my.glooko.com")) {
+      await page.goto(preferredHomeUrl, { waitUntil: "domcontentloaded" }).catch(() => undefined);
     }
 
     await openCsvExportDialog(page, day, baseOrigin, days, exportUrl);

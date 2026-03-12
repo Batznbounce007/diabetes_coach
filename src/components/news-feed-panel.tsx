@@ -169,7 +169,7 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
                     <button
                       type="button"
                       onClick={() => handleSummary(item)}
-                      className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-secondary/70 px-2.5 py-1 text-[11px] font-semibold text-foreground transition hover:bg-secondary"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/70 bg-secondary/70 text-[11px] font-semibold text-foreground transition hover:bg-secondary"
                       aria-label={t.summaryAction}
                       title={t.summaryAction}
                     >
@@ -179,7 +179,6 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
                       >
                         ✨
                       </span>
-                      {t.summaryActionShort}
                     </button>
                   </div>
                   <span className="text-xs text-muted-foreground">
@@ -187,7 +186,7 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
                   </span>
                 </div>
 
-                <div className="mt-3 border-t border-border/60 pt-3">
+                <div className="mt-3">
                   <a
                     href={item.link}
                     target="_blank"
