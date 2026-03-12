@@ -155,7 +155,6 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
           startRecording: "Frage einsprechen",
           loading: "Lade fachgerechte Antworten...",
           submit: "Erhalte fachgerechte Antworten",
-          micHint: 'Mikrofon aktivierbar: Klick auf das Mikrofon-Symbol.',
           micUnsupported: "Spracherkennung wird in diesem Browser nicht unterstützt.",
           speechRecognized: "Sprache erkannt...",
           speechError: "Spracherkennung fehlgeschlagen. Bitte erneut versuchen.",
@@ -184,7 +183,6 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
           startRecording: "Speak question",
           loading: "Loading expert answers...",
           submit: "Get expert answers",
-          micHint: "Microphone available: click the microphone icon.",
           micUnsupported: "Speech recognition is not supported in this browser.",
           speechRecognized: "Speech recognized...",
           speechError: "Speech recognition failed. Please try again.",
@@ -392,12 +390,14 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
               {isLoading ? t.loading : t.submit}
             </button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            {speechSupported ? speechStatus || t.micHint : t.micUnsupported}
-          </p>
+          {speechStatus ? (
+            <p className="text-xs text-muted-foreground">{speechStatus}</p>
+          ) : !speechSupported ? (
+            <p className="text-xs text-muted-foreground">{t.micUnsupported}</p>
+          ) : null}
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {starterQuestions.map((preset) => (
             <button
               key={preset}
@@ -411,7 +411,7 @@ export function SystemQaPanel({ lang }: SystemQaPanelProps) {
                   });
                 }, 120);
               }}
-              className="rounded-full border border-border bg-secondary/40 px-3 py-1 text-xs"
+              className="rounded-full border border-border bg-secondary/40 px-3 py-1 text-xs text-left"
             >
               {preset}
             </button>

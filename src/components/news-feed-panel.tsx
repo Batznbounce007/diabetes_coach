@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import type { NewsItem } from "@/lib/news";
 import { trustedSources } from "@/lib/newsSources";
@@ -37,6 +37,7 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
           summaryLoading: "Summary wird geladen …",
           summaryError: "Summary konnte nicht geladen werden.",
           close: "Schließen",
+          navHint: "Pfeile wechseln",
           empty:
             "Der News-Feed ist gerade nicht erreichbar. Nutze rechts die kuratierten Quellen.",
           bestSources: "Beste Quellen",
@@ -52,6 +53,7 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
           summaryLoading: "Loading summary …",
           summaryError: "Summary could not be loaded.",
           close: "Close",
+          navHint: "Arrow keys",
           empty: "The news feed is currently unavailable. Use the curated sources on the right.",
           bestSources: "Best sources",
           bestSourcesHint: "High-quality scientific and clinically relevant sources."
@@ -61,6 +63,20 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
     () => (activeLink ? news.find((item) => item.link === activeLink) ?? null : null),
     [activeLink, news]
   );
+
+  const activeIndex = useMemo(
+    () => (activeItem ? news.findIndex((item) => item.link === activeItem.link) : -1),
+    [activeItem, news]
+  );
+
+  function navigateSummary(direction: "prev" | "next") {
+    if (!news.length || activeIndex === -1) return;
+    const delta = direction === "next" ? 1 : -1;
+    const nextIndex = (activeIndex + delta + news.length) % news.length;
+    setActiveLink(news[nextIndex]?.link ?? null);
+    setSummaryError(null);
+    setSummaryLoading(false);
+  }
 
   async function handleSummary(item: NewsItem) {
     if (summaryCache[item.link]) {
@@ -105,6 +121,28 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
     setSummaryLoading(false);
   }
 
+  useEffect(() => {
+    if (!activeItem) return;
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeSummary();
+        return;
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        navigateSummary("next");
+        return;
+      }
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        navigateSummary("prev");
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [activeItem, activeIndex, news]);
+
   return (
     <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
       <section className="rounded-2xl border border-border bg-card p-5">
@@ -118,28 +156,43 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
         ) : (
           <div className="mt-4 space-y-3">
             {news.map((item) => (
-              <article key={item.link} className="rounded-lg border border-border p-4">
-                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span className="rounded-full bg-secondary px-2 py-1">{item.topic}</span>
-                  <span>{item.source}</span>
-                  <span>{formatDate(item.publishedAt, lang)}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleSummary(item)}
-                    className="ml-auto inline-flex items-center gap-2 rounded-full border border-border/70 px-2.5 py-1 text-[11px] font-semibold text-foreground transition hover:bg-secondary"
-                    aria-label={t.summaryAction}
-                    title={t.summaryAction}
-                  >
-                    <span aria-hidden="true">✨</span>
-                    {t.summaryActionShort}
-                  </button>
-                </div>
+              <article
+                key={item.link}
+                className="rounded-xl border border-border bg-background/40 p-4 shadow-[0_1px_0_rgba(0,0,0,0.02)]"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="rounded-full bg-secondary px-2 py-1 font-medium">
+                      {item.topic}
+                    </span>
+                    <span className="text-foreground/70">{item.source}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleSummary(item)}
+                      className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-secondary/70 px-2.5 py-1 text-[11px] font-semibold text-foreground transition hover:bg-secondary"
+                      aria-label={t.summaryAction}
+                      title={t.summaryAction}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground shadow-sm"
+                      >
+                        ✨
+                      </span>
+                      {t.summaryActionShort}
+                    </button>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {formatDate(item.publishedAt, lang)}
+                  </span>
+                </div>
+
+                <div className="mt-3 border-t border-border/60 pt-3">
                   <a
                     href={item.link}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-sm font-semibold leading-6 text-foreground underline"
+                    className="text-sm font-semibold leading-6 text-foreground underline-offset-4 hover:underline"
                   >
                     {item.title}
                   </a>
@@ -178,13 +231,20 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
                 <h3 className="mt-1 text-lg font-semibold">{activeItem.title}</h3>
                 <p className="mt-1 text-xs text-muted-foreground">{activeItem.source}</p>
               </div>
-              <button
-                type="button"
-                onClick={closeSummary}
-                className="rounded-full border border-border px-3 py-1 text-xs font-semibold"
-              >
-                {t.close}
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 rounded-full border border-border/70 px-2 py-1 text-[11px] text-muted-foreground">
+                  <span aria-hidden="true">◀</span>
+                  <span aria-hidden="true">▶</span>
+                  <span className="sr-only">{t.navHint}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeSummary}
+                  className="rounded-full border border-border px-3 py-1 text-xs font-semibold"
+                >
+                  {t.close}
+                </button>
+              </div>
             </div>
 
             <div className="mt-4 space-y-3 text-sm text-foreground">
