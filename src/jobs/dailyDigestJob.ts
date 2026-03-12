@@ -8,10 +8,17 @@ import { refreshNewsCache } from "@/lib/news";
 async function runAnalysisForDay(day: Date): Promise<void> {
   const dayString = day.toISOString().slice(0, 10);
   const csvContent = await exportGlookoCsvForDay(dayString);
+  const csvLineCount = csvContent.split(/\r?\n/).filter((line) => line.trim().length > 0).length;
+  console.log(`[analysis] csv_lines=${csvLineCount} day=${dayString}`);
   const readings = await parseGlookoCsv(csvContent);
+  console.log(`[analysis] parsed_readings=${readings.length} day=${dayString}`);
   await upsertReadings(readings);
+  console.log(`[analysis] upserted_readings=${readings.length} day=${dayString}`);
   for (let i = 13; i >= 0; i -= 1) {
-    await computeAndStoreDailySummary(subDays(day, i));
+    const summary = await computeAndStoreDailySummary(subDays(day, i));
+    console.log(
+      `[analysis] summary day=${subDays(day, i).toISOString().slice(0, 10)} tir=${summary.tirPercent.toFixed(1)} cv=${summary.coefficientVariance.toFixed(1)} sd=${summary.stdDev.toFixed(1)}`
+    );
   }
 }
 
