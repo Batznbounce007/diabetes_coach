@@ -1,12 +1,5 @@
 import { parse } from "csv-parse/sync";
-import { z } from "zod";
 import type { CgmSample } from "@/lib/types";
-
-const rowSchema = z.object({
-  Timestamp: z.string(),
-  "Glucose mg/dL": z.string().optional(),
-  "CGM Glucose Value (mg/dl)": z.string().optional()
-});
 
 function normalizeTimestamp(raw: string): Date | null {
   const iso = raw.replace(" ", "T") + "Z";
@@ -14,34 +7,66 @@ function normalizeTimestamp(raw: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function detectDelimiter(line: string): string | undefined {
+  if (line.includes(";") && !line.includes(",")) return ";";
+  if (line.includes(",")) return ",";
+  return undefined;
+}
+
+function pickField(
+  record: Record<string, string>,
+  patterns: RegExp[]
+): string | undefined {
+  const entries = Object.entries(record);
+  for (const [key, value] of entries) {
+    const normalized = key.toLowerCase();
+    if (patterns.every((pattern) => pattern.test(normalized))) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 export async function parseGlookoCsv(csvContent: string): Promise<CgmSample[]> {
   const lines = csvContent.split(/\r?\n/).filter((line) => line.trim().length > 0);
   const headerIndex = lines.findIndex(
     (line) =>
-      line.includes("Timestamp") &&
-      (line.includes("Glucose mg/dL") || line.includes("CGM Glucose Value (mg/dl)"))
+      /timestamp|zeit|datum/i.test(line) &&
+      /(glucose|glukose|cgm)/i.test(line)
   );
 
-  const normalizedCsv =
-    headerIndex >= 0 ? `${lines.slice(headerIndex).join("\n")}\n` : csvContent;
+  const normalizedCsv = headerIndex >= 0 ? `${lines.slice(headerIndex).join("\n")}\n` : csvContent;
+  const delimiter = detectDelimiter(lines[headerIndex >= 0 ? headerIndex : 0] ?? "");
 
   const records = parse(normalizedCsv, {
     columns: true,
     trim: true,
     skip_empty_lines: true,
     relax_column_count: true,
-    bom: true
+    bom: true,
+    delimiter
   }) as Record<string, string>[];
 
   return records
-    .map((record) => rowSchema.safeParse(record))
-    .filter((parsed) => parsed.success)
-    .map((parsed) => parsed.data)
     .map((row) => {
-      const timestamp = normalizeTimestamp(row.Timestamp);
-      const glucose = Number(
-        row["Glucose mg/dL"] ?? row["CGM Glucose Value (mg/dl)"] ?? Number.NaN
-      );
+      const timestampRaw =
+        row.Timestamp ??
+        row.Zeitstempel ??
+        row["Datum/Uhrzeit"] ??
+        pickField(row, [/timestamp|zeit|datum/]);
+      const glucoseRaw =
+        row["Glucose mg/dL"] ??
+        row["Glucose (mg/dl)"] ??
+        row["Glukose mg/dl"] ??
+        row["Glukose (mg/dl)"] ??
+        row["CGM Glucose Value (mg/dl)"] ??
+        row["CGM Glukosewert (mg/dl)"] ??
+        pickField(row, [/(glucose|glukose|cgm)/, /mg\/?dl/]);
+
+      const timestamp = timestampRaw ? normalizeTimestamp(String(timestampRaw)) : null;
+      const glucose = glucoseRaw
+        ? Number(String(glucoseRaw).replace(",", "."))
+        : Number.NaN;
 
       if (!timestamp || Number.isNaN(glucose)) {
         return null;
