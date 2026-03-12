@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import type { NewsItem } from "@/lib/news";
-import { trustedSources } from "@/lib/news";
+import { trustedSources } from "@/lib/newsSources";
 
 type NewsFeedPanelProps = {
   news: NewsItem[];
@@ -33,6 +33,7 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
             "Relevante Updates zu Diabetes-Forschung, neuen CGMs, Pumpen und Closed-Loop-Systemen.",
           summaryLabel: "Zusammenfassung",
           summaryAction: "Summary anzeigen",
+          summaryActionShort: "Summary",
           summaryLoading: "Summary wird geladen …",
           summaryError: "Summary konnte nicht geladen werden.",
           close: "Schließen",
@@ -47,6 +48,7 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
             "Relevant updates on diabetes research, new CGMs, pumps, and closed-loop systems.",
           summaryLabel: "Summary",
           summaryAction: "Show summary",
+          summaryActionShort: "Summary",
           summaryLoading: "Loading summary …",
           summaryError: "Summary could not be loaded.",
           close: "Close",
@@ -121,6 +123,16 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
                   <span className="rounded-full bg-secondary px-2 py-1">{item.topic}</span>
                   <span>{item.source}</span>
                   <span>{formatDate(item.publishedAt, lang)}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSummary(item)}
+                    className="ml-auto inline-flex items-center gap-2 rounded-full border border-border/70 px-2.5 py-1 text-[11px] font-semibold text-foreground transition hover:bg-secondary"
+                    aria-label={t.summaryAction}
+                    title={t.summaryAction}
+                  >
+                    <span aria-hidden="true">✨</span>
+                    {t.summaryActionShort}
+                  </button>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <a
@@ -131,13 +143,6 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
                   >
                     {item.title}
                   </a>
-                  <button
-                    type="button"
-                    onClick={() => handleSummary(item)}
-                    className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-foreground transition hover:bg-secondary"
-                  >
-                    {t.summaryAction}
-                  </button>
                 </div>
               </article>
             ))}
