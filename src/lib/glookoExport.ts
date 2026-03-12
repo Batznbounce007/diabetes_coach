@@ -49,34 +49,49 @@ async function dismissCookieOverlay(page: Page): Promise<void> {
     "#onetrust-accept-btn-handler",
     "button:has-text('Accept All')",
     "button:has-text('Alle akzeptieren')",
-    "button:has-text('Accept')"
+    "button:has-text('Accept')",
+    "#onetrust-reject-all-handler",
+    "button:has-text('Alle ablehnen')",
+    "button:has-text('Reject All')"
   ];
 
-  for (const selector of acceptSelectors) {
-    const button = page.locator(selector).first();
-    if ((await button.count()) > 0) {
-      await button.click({ force: true }).catch(() => undefined);
-      await page.waitForTimeout(150);
-      break;
-    }
-  }
+  const overlaySelectors = [
+    "#onetrust-consent-sdk",
+    "#onetrust-banner-sdk",
+    "#onetrust-pc-sdk",
+    "#ot-sdk-cookie-policy",
+    ".onetrust-pc-dark-filter"
+  ];
 
-  // Fallback: remove known OneTrust blockers if still present.
-  await page
-    .evaluate(() => {
-      const ids = [
-        "onetrust-consent-sdk",
-        "onetrust-banner-sdk",
-        "onetrust-pc-sdk",
-        "ot-sdk-cookie-policy"
-      ];
-      for (const id of ids) {
-        const element = document.getElementById(id);
-        if (element) element.remove();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    for (const selector of acceptSelectors) {
+      const button = page.locator(selector).first();
+      if ((await button.count()) > 0) {
+        await button.click({ force: true }).catch(() => undefined);
+        await page.waitForTimeout(200);
+        break;
       }
-      document.body.style.overflow = "auto";
-    })
-    .catch(() => undefined);
+    }
+
+    await page
+      .addStyleTag({
+        content:
+          ".onetrust-pc-dark-filter,#onetrust-consent-sdk,#onetrust-banner-sdk,#onetrust-pc-sdk,#ot-sdk-cookie-policy{display:none !important;pointer-events:none !important;}body{overflow:auto !important;}"
+      })
+      .catch(() => undefined);
+
+    await page
+      .evaluate((selectors) => {
+        for (const selector of selectors) {
+          document.querySelectorAll(selector).forEach((el) => el.remove());
+        }
+        document.body.style.overflow = "auto";
+      }, overlaySelectors)
+      .catch(() => undefined);
+
+    const blockers = page.locator(overlaySelectors.join(", "));
+    if ((await blockers.count()) === 0) break;
+  }
 }
 
 async function selectFirstAvailable(
@@ -320,6 +335,12 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
 
     const performLogin = async (targetUrl: string): Promise<void> => {
       await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+      await dismissCookieOverlay(page);
+      await page
+        .waitForSelector("#user_email, input[type='email'], input[name='user[email]']", {
+          timeout: 10_000
+        })
+        .catch(() => undefined);
       await dismissCookieOverlay(page);
       await page
         .evaluate(() => {
