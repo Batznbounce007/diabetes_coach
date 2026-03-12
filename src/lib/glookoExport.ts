@@ -5,8 +5,43 @@ import AdmZip from "adm-zip";
 
 const exportDir = path.resolve(process.cwd(), "exports");
 
-const defaultLoginUrl = "https://de-fr.my.glooko.com/users/sign_in?locale=de";
-const preferredHost = "https://de-fr.my.glooko.com";
+const defaultRegionHost = "https://de-fr.my.glooko.com";
+const defaultLoginUrl = `${defaultRegionHost}/users/sign_in?locale=de`;
+
+function getPreferredHost(): string {
+  const envHost = process.env.GLOOKO_BASE_URL?.trim();
+  if (envHost) return envHost.replace(/\/+$/, "");
+  return defaultRegionHost;
+}
+
+function getForceRegion(): string {
+  return (process.env.GLOOKO_FORCE_REGION ?? "de-fr").toLowerCase();
+}
+
+function isWrongRegionUrl(url: string, preferredHost: string): boolean {
+  if (!url) return false;
+  if (url.startsWith(preferredHost)) return false;
+  return url.includes("my.glooko.com");
+}
+
+async function enforcePreferredHost(page: Page, preferredHost: string): Promise<void> {
+  const preferredOrigin = new URL(preferredHost).origin;
+  const forceRegion = getForceRegion();
+
+  page.on("framenavigated", (frame) => {
+    if (frame !== page.mainFrame()) return;
+    const url = frame.url();
+    if (!isWrongRegionUrl(url, preferredOrigin)) return;
+    if (url.includes(`${forceRegion}.my.glooko.com`)) return;
+    try {
+      const parsed = new URL(url);
+      const target = `${preferredOrigin}${parsed.pathname}${parsed.search}`;
+      page.goto(target, { waitUntil: "domcontentloaded" }).catch(() => undefined);
+    } catch {
+      // ignore parse errors
+    }
+  });
+}
 
 function isSignInUrl(url: string): boolean {
   return /\/users\/sign[_-]?in/i.test(url);
@@ -285,7 +320,10 @@ async function openCsvExportDialog(
   }
   if (isSignInUrl(page.url())) {
     throw new Error(
-      `Glooko session is not authenticated (redirected to sign-in at ${page.url()}). Check GLOOKO_EMAIL/GLOOKO_PASSWORD and whether Glooko prompts for additional verification. Debug saved to ${debugPath}.png/.html (if available).`
+      `Glooko session is not authenticated (redirected to sign-in at ${page.url()}). ` +
+        `Expected region: ${getForceRegion()} (${getPreferredHost()}). ` +
+        "Check GLOOKO_EMAIL/GLOOKO_PASSWORD and whether Glooko prompts for additional verification. " +
+        `Debug saved to ${debugPath}.png/.html (if available).`
     );
   }
   throw new Error(
@@ -296,7 +334,8 @@ async function openCsvExportDialog(
 export async function exportGlookoCsvForDay(day: string): Promise<string> {
   const email = process.env.GLOOKO_EMAIL;
   const password = process.env.GLOOKO_PASSWORD;
-  const loginUrl = process.env.GLOOKO_LOGIN_URL ?? defaultLoginUrl;
+  const preferredHost = getPreferredHost();
+  const loginUrl = process.env.GLOOKO_LOGIN_URL ?? `${preferredHost}/users/sign_in?locale=de`;
   const preferredHomeUrl = process.env.GLOOKO_HOME_URL ?? `${preferredHost}/`;
   const exportUrl = process.env.GLOOKO_EXPORT_URL;
 
@@ -308,9 +347,9 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
   const csvPath = path.join(exportDir, `${day}.csv`);
   const baseOrigin = (() => {
     try {
-      return new URL(loginUrl).origin;
+      return new URL(preferredHost).origin;
     } catch {
-      return "https://de-fr.my.glooko.com";
+      return defaultRegionHost;
     }
   })();
 
@@ -332,6 +371,7 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
       }
     });
     page = await context.newPage();
+    await enforcePreferredHost(page, preferredHost);
 
     const performLogin = async (targetUrl: string): Promise<void> => {
       await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
@@ -395,8 +435,8 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
 
     await performLogin(loginUrl);
 
-    if (isSignInUrl(page.url()) && page.url().includes("us.my.glooko.com")) {
-      await performLogin(defaultLoginUrl);
+    if (isSignInUrl(page.url()) && isWrongRegionUrl(page.url(), preferredHost)) {
+      await performLogin(`${preferredHost}/users/sign_in?locale=de`);
     }
 
     if (isSignInUrl(page.url())) {
@@ -407,7 +447,7 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
       );
     }
 
-    if (!page.url().startsWith(preferredHost)) {
+    if (isWrongRegionUrl(page.url(), preferredHost)) {
       await page.goto(preferredHomeUrl, { waitUntil: "domcontentloaded" }).catch(() => undefined);
     }
 
