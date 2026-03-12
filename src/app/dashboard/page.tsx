@@ -259,7 +259,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     `CGM Update (${format(new Date(), "yyyy-MM-dd")})`,
     `TIR: ${insight.tirPercent.toFixed(1)}%`,
     `Avg: ${avgGlucose.toFixed(1)} mg/dL`,
-    `SD: ${insight.stdDev.toFixed(1)} mg/dL`,
+    `SD: ${Math.round(insight.stdDev)} mg/dL`,
     `Streak: ${latestSummary?.streakDays ?? 0} day(s)`,
     `Focus: ${insight.recommendation}`,
     "",
@@ -422,7 +422,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             />
             <SummaryKpi
               title="Streuung (SD)"
-              value={`${insight.stdDev.toFixed(1)} mg/dL`}
+              value={`${Math.round(insight.stdDev)} mg/dL`}
               subtitle={`CV: ${insight.coefficientVariance.toFixed(1)}%`}
               variant={insight.stdDev <= 35 ? "success" : "improve"}
             />
@@ -593,7 +593,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               </div>
               <div className="rounded-lg bg-secondary/60 p-3">
                 <p className="text-muted-foreground">SD</p>
-                <p className="text-xl font-bold">{insight.stdDev.toFixed(1)}</p>
+                <p className="text-xl font-bold">{Math.round(insight.stdDev)}</p>
               </div>
               <div className="rounded-lg bg-secondary/60 p-3">
                 <p className="text-muted-foreground">Streak</p>
