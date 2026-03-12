@@ -66,6 +66,19 @@ function stripMarkdownNoise(text: string): string {
     .trim();
 }
 
+function hasRequiredInsights(message: string, insight: DailyInsight): boolean {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  const tirValue = Math.round(insight.tirPercent);
+  const cvValue = Math.round(insight.coefficientVariance);
+  const stdValue = Math.round(insight.stdDev);
+
+  const tirRegex = new RegExp(`\\b${tirValue}\\b`);
+  const cvRegex = new RegExp(`\\b${cvValue}\\b`);
+  const stdRegex = new RegExp(`\\b${stdValue}\\b`);
+
+  return tirRegex.test(normalized) && (cvRegex.test(normalized) || stdRegex.test(normalized));
+}
+
 async function generateAiTelegramMessage(
   insight: DailyInsight,
   day: string
@@ -145,7 +158,9 @@ async function generateAiTelegramMessage(
       .filter(Boolean);
     if (nonEmptyLines.length < 4) return null;
 
-    return nonEmptyLines.join("\n");
+    const candidate = nonEmptyLines.join("\n");
+    if (!hasRequiredInsights(candidate, insight)) return null;
+    return candidate;
   } catch {
     return null;
   } finally {
