@@ -1,7 +1,7 @@
 import { endOfDay, startOfDay, subDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { buildDailyInsight } from "@/lib/insights";
-import { sendDailyTelegram } from "@/lib/telegram";
+import { sendDailyTelegram, sendPlainTelegram } from "@/lib/telegram";
 import type { DailyInsight } from "@/lib/types";
 
 export async function computeAndStoreDailySummary(day: Date): Promise<DailyInsight> {
@@ -52,19 +52,11 @@ export async function sendDailySummaryMessage(day: Date): Promise<void> {
   };
 
   if (isEmptySummary(summary)) {
-    summary = await prisma.dailySummary.findFirst({
-      where: {
-        tirPercent: { gt: 0 },
-        stdDev: { gt: 0 }
-      },
-      orderBy: { day: "desc" }
-    });
-  }
-
-  if (!summary) {
-    throw new Error(
-      `No daily summary found for ${dayStart.toISOString().slice(0, 10)}. Run analysis first.`
+    const dayLabel = dayStart.toISOString().slice(0, 10);
+    await sendPlainTelegram(
+      `Guten Morgen! Für ${dayLabel} liegen noch keine neuen CGM-Daten vor. Bitte prüfe den Export und die Analyse.`
     );
+    return;
   }
 
   const insight: DailyInsight = {

@@ -183,3 +183,15 @@ export async function sendDailyTelegram(
   const message = (await generateAiTelegramMessage(insight, day)) ?? buildFallbackMessage(insight, day);
   await bot.telegram.sendMessage(chatId, message);
 }
+
+export async function sendPlainTelegram(text: string): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+
+  if (!token || !chatId) {
+    throw new Error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID");
+  }
+
+  const bot = new Telegraf(token);
+  await bot.telegram.sendMessage(chatId, text);
+}
