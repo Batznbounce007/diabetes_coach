@@ -22,6 +22,7 @@ jobs:
       GLOOKO_STORAGE_STATE_BASE64: ${{ secrets.GLOOKO_STORAGE_STATE_BASE64 }}
       GLOOKO_BASE_URL: ${{ secrets.GLOOKO_BASE_URL }}
       GLOOKO_FORCE_REGION: ${{ secrets.GLOOKO_FORCE_REGION }}
+      GLOOKO_SKIP_LOGIN: ${{ secrets.GLOOKO_SKIP_LOGIN }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GROQ_MODEL: ${{ secrets.GROQ_MODEL }}
       GROQ_BASE_URL: ${{ secrets.GROQ_BASE_URL }}
