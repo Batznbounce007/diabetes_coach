@@ -18,6 +18,20 @@ function getForceRegion(): string {
   return (process.env.GLOOKO_FORCE_REGION ?? "de-fr").toLowerCase();
 }
 
+async function resolveStorageState(): Promise<string | undefined> {
+  const envPath = process.env.GLOOKO_STORAGE_STATE_PATH?.trim();
+  if (envPath) return envPath;
+
+  const base64 = process.env.GLOOKO_STORAGE_STATE_BASE64?.trim();
+  if (!base64) return undefined;
+
+  await fs.mkdir(exportDir, { recursive: true });
+  const targetPath = path.join(exportDir, "glooko-storage-state.json");
+  const decoded = Buffer.from(base64, "base64");
+  await fs.writeFile(targetPath, decoded);
+  return targetPath;
+}
+
 function isWrongRegionUrl(url: string, preferredHost: string): boolean {
   if (!url) return false;
   if (url.startsWith(preferredHost)) return false;
@@ -356,6 +370,9 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
   const exportPeriodDays = Number.parseInt(process.env.GLOOKO_EXPORT_DAYS ?? "14", 10);
   const days = Number.isNaN(exportPeriodDays) ? 14 : Math.max(1, exportPeriodDays);
 
+  const storageStatePath = await resolveStorageState();
+  const skipLogin = process.env.GLOOKO_SKIP_LOGIN === "true";
+
   const browser = await chromium.launch({
     headless: process.env.GLOOKO_HEADLESS !== "false"
   });
@@ -366,6 +383,7 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
       acceptDownloads: true,
       locale: "de-DE",
       timezoneId: "Europe/Berlin",
+      storageState: storageStatePath ?? undefined,
       extraHTTPHeaders: {
         "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7"
       }
@@ -433,7 +451,21 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
       await waitForLoginTransition(page, 45_000);
     };
 
-    await performLogin(loginUrl);
+    if (storageStatePath) {
+      await page.goto(preferredHomeUrl, { waitUntil: "domcontentloaded" }).catch(() => undefined);
+      await dismissCookieOverlay(page);
+    }
+
+    if (skipLogin && storageStatePath && isSignInUrl(page.url())) {
+      throw new Error(
+        "Stored Glooko session is not valid (still on sign-in). " +
+          "Refresh the storage state (GLOOKO_STORAGE_STATE_BASE64) and retry."
+      );
+    }
+
+    if (!skipLogin || !storageStatePath || isSignInUrl(page.url())) {
+      await performLogin(loginUrl);
+    }
 
     if (isSignInUrl(page.url()) && isWrongRegionUrl(page.url(), preferredHost)) {
       await performLogin(`${preferredHost}/users/sign_in?locale=de`);
@@ -550,6 +582,10 @@ export async function exportGlookoCsvForDay(day: string): Promise<string> {
     const file = rawFile.toString("utf8");
     if (!file.includes(",") || file.length < 50) {
       throw new Error("Downloaded CSV content is invalid or empty.");
+    }
+
+    if (process.env.GLOOKO_STORAGE_STATE_OUT) {
+      await context.storageState({ path: process.env.GLOOKO_STORAGE_STATE_OUT });
     }
 
     return file;
