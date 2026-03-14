@@ -303,9 +303,13 @@ export async function getNewsDigest(limit = 30): Promise<NewsItem[]> {
   const results = await Promise.all(
     feeds.map(async (feed) => {
       try {
-        const response = await fetch(feed.url, {
-          next: { revalidate: 1800 }
-        });
+        const response = await withTimeout(
+          (signal) =>
+            fetch(feed.url, {
+              signal
+            }),
+          8000
+        );
         if (!response.ok) return [];
         const xml = await response.text();
         return parseRssItems(xml, feed.topic, feed.source).slice(0, 10);
@@ -315,7 +319,15 @@ export async function getNewsDigest(limit = 30): Promise<NewsItem[]> {
     })
   );
 
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - 1000 * 60 * 60 * 24 * 60);
   const baseItems = uniqueByLink(results.flat())
+    .filter((item) => {
+      if (!item.publishedAt) return false;
+      const parsed = new Date(item.publishedAt);
+      if (Number.isNaN(parsed.getTime())) return false;
+      return parsed >= cutoff;
+    })
     .sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1))
     .slice(0, limit);
 
