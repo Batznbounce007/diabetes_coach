@@ -169,16 +169,11 @@ export function NewsFeedPanel({ news, lang }: NewsFeedPanelProps) {
                     <button
                       type="button"
                       onClick={() => handleSummary(item)}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/70 bg-secondary/70 text-[11px] font-semibold text-foreground transition hover:bg-secondary"
+                      className="text-foreground/70 underline underline-offset-4 transition hover:text-foreground"
                       aria-label={t.summaryAction}
                       title={t.summaryAction}
                     >
-                      <span
-                        aria-hidden="true"
-                        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground shadow-sm"
-                      >
-                        ✨
-                      </span>
+                      {t.summaryActionShort}
                     </button>
                   </div>
                   <span className="text-xs text-muted-foreground">
