@@ -1,5 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { prisma } from "@/lib/prisma";
 import { trustedSources } from "@/lib/newsSources";
 
 export type NewsItem = {
@@ -324,30 +323,64 @@ export async function getNewsDigest(limit = 30): Promise<NewsItem[]> {
   return enriched;
 }
 
-type NewsCachePayload = {
-  updatedAt: string;
-  items: NewsItem[];
-};
-
-const newsCachePath = path.join(process.cwd(), "data", "news-cache.json");
-
 export async function refreshNewsCache(limit = 30): Promise<NewsItem[]> {
   const items = await getNewsDigest(limit);
-  await mkdir(path.dirname(newsCachePath), { recursive: true });
-  const payload: NewsCachePayload = {
-    updatedAt: new Date().toISOString(),
-    items
-  };
-  await writeFile(newsCachePath, JSON.stringify(payload, null, 2), "utf8");
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - 1000 * 60 * 60 * 24 * 90);
+
+  await prisma.$transaction(async (tx) => {
+    for (const item of items) {
+      await tx.newsItem.upsert({
+        where: { link: item.link },
+        create: {
+          title: item.title,
+          link: item.link,
+          publishedAt: item.publishedAt ? new Date(item.publishedAt) : null,
+          source: item.source,
+          topic: item.topic,
+          imageUrl: item.imageUrl ?? null
+        },
+        update: {
+          title: item.title,
+          publishedAt: item.publishedAt ? new Date(item.publishedAt) : null,
+          source: item.source,
+          topic: item.topic,
+          imageUrl: item.imageUrl ?? null
+        }
+      });
+    }
+
+    await tx.newsItem.deleteMany({
+      where: {
+        publishedAt: {
+          lt: cutoff
+        }
+      }
+    });
+  });
+
   return items;
 }
 
 export async function getCachedNewsDigest(limit = 30): Promise<NewsItem[]> {
   try {
-    const raw = await readFile(newsCachePath, "utf8");
-    const parsed = JSON.parse(raw) as NewsCachePayload;
-    if (!Array.isArray(parsed.items)) throw new Error("Invalid cache payload");
-    return parsed.items.slice(0, limit);
+    const items = await prisma.newsItem.findMany({
+      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      take: limit
+    });
+
+    if (items.length === 0) {
+      return await getNewsDigest(limit);
+    }
+
+    return items.map((item) => ({
+      title: item.title,
+      link: item.link,
+      publishedAt: item.publishedAt ? item.publishedAt.toISOString() : "",
+      source: item.source,
+      topic: item.topic,
+      imageUrl: item.imageUrl ?? undefined
+    }));
   } catch {
     return getNewsDigest(limit);
   }

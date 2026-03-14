@@ -29,3 +29,17 @@ model DailySummary {
   motivationalMessage String
   createdAt           DateTime @default(now())
 }
+
+model NewsItem {
+  id          String   @id @default(cuid())
+  title       String
+  link        String   @unique
+  publishedAt DateTime?
+  source      String
+  topic       String
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([publishedAt])
+}
