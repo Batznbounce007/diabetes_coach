@@ -104,6 +104,28 @@ Manual trigger:
 - Open GitHub -> `Actions` -> `Diabetes Scheduler` -> `Run workflow`
 - Choose `job`: `auto`, `news`, `morning`, `analysis`, or `all`
 
+## Glooko Session Refresh (GitHub Actions)
+
+GitHub Actions uses a stored Glooko session snapshot. Your normal browser sessions are independent.
+When the Glooko session expires or you change your password, refresh the snapshot and update the secret.
+
+Steps:
+1. Generate a new storage state locally:
+   ```bash
+   cd /Users/macbookair/Desktop/Diabetes_Heiko_Neu
+   GLOOKO_EMAIL="you@email.com" GLOOKO_PASSWORD="your-password" GLOOKO_HEADLESS=false node scripts/glooko-storage-state.mjs
+   ```
+2. After you finish login in the opened browser, press Enter in the terminal.
+3. Copy the full contents of:
+   ```bash
+   /Users/macbookair/Desktop/Diabetes_Heiko_Neu/exports/glooko-storage-state.base64.txt
+   ```
+4. Update GitHub Secret `GLOOKO_STORAGE_STATE_BASE64` with that value.
+
+You only need to repeat this when:
+- Glooko logs the session out, or
+- You change your Glooko password.
+
 ## TDD Coverage (current)
 
 - CSV parsing + normalization
